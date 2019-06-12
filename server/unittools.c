@@ -3182,7 +3182,7 @@ static void wakeup_neighbor_sentries(struct unit *punit)
       int distance_sq = sq_map_distance(unit_tile(punit), ptile);
       int radius_sq = get_unit_vision_at(penemy, unit_tile(penemy), V_MAIN);
 
-      if (!pplayers_allied(unit_owner(punit), unit_owner(penemy))
+      if (pplayers_at_war(unit_owner(punit), unit_owner(penemy))
           && penemy->activity == ACTIVITY_SENTRY
           && radius_sq >= distance_sq
           /* If the unit moved on a city, and the unit is alone, consider
