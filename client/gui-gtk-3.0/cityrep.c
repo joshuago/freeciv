@@ -1338,6 +1338,7 @@ static void city_select_building_callback(GtkMenuItem *item, gpointer data)
         && ((which == PCT_UNIT && VUT_UTYPE == pcity->production.kind)
             || (which == PCT_NORMAL_IMPROVEMENT
                 && VUT_IMPROVEMENT == pcity->production.kind
+                && is_improvement(pcity->production.value.building)
                 && !is_wonder(pcity->production.value.building))
             || (which == PCT_WONDER
                 && VUT_IMPROVEMENT == pcity->production.kind
