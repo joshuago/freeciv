@@ -215,6 +215,7 @@ flag_files =				\
 		hesse.png		\
 		himyar.png		\
 		hittite.png		\
+		hokkien.png		\
 		honduras.png		\
 		hopi.png		\
 		hre.png			\
@@ -781,6 +782,7 @@ flag_files =				\
 		hesse-large.png		\
 		himyar-large.png		\
 		hittite-large.png		\
+		hokkien-large.png		\
 		honduras-large.png		\
 		hopi-large.png		\
 		hre-large.png			\
@@ -1349,6 +1351,7 @@ shield_files =					\
 		hesse-shield.png		\
 		himyar-shield.png		\
 		hittite-shield.png		\
+		hokkien-shield.png		\
 		honduras-shield.png		\
 		hopi-shield.png			\
 		hre-shield.png			\
@@ -1915,6 +1918,7 @@ shield_files =					\
 		hesse-shield-large.png		\
 		himyar-shield-large.png		\
 		hittite-shield-large.png		\
+		hokkien-shield-large.png		\
 		honduras-shield-large.png		\
 		hopi-shield-large.png			\
 		hre-shield-large.png			\
@@ -2483,6 +2487,7 @@ svg_files = 				\
 		hesse.svg		\
 		himyar.svg		\
 		hittite.svg		\
+		hokkien.svg		\
 		honduras.svg		\
 		hopi.svg		\
 		hre.svg			\

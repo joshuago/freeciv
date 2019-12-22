@@ -1,0 +1,129 @@
+[nation_hokkien]
+
+name=_("Hokkien")
+plural=_("?plural:Hokkien")
+groups="Asian", "Ancient"
+legend=_("The Hokkien are a sub-group of the Chinese people originating\
+ from Fujian Province in Southern China comprising about 60 million\
+ people. The Hokkien are renowned for their business savvy, and constitute\
+ an important element in Overseas Chinese communities worldwide. They also\
+ form a majority of the population in Taiwan and Singapore. \
+ Hokkien is the third most spoken Chinese language after Mandarin \
+ and Cantonese.")
+
+leaders = {
+ "name",            "sex"
+ "Ah Niu",          "Male"
+ "Kok Seng-ia",     "Male"
+ "So Siong",        "Male"
+ "Go Peh-Hok",      "Male"
+ "Si Chi-seng",     "Male"
+ "Chua Siau-tong",  "Male"
+ "Howqua",  "Male"
+}
+
+ruler_titles = {
+ "government",      "male_title",            "female_title"
+ "Democracy",       _("Chancellor %s"),      _("?female:Chancellor %s")
+}
+
+flag="hokkien"
+flag_alt = "-"
+city_style = "Asian"
+
+init_techs=""
+init_buildings=""
+init_units=""
+
+civilwar_nations="Japanese", "Korean", "Singaporean", "Taiwanese"
+
+cities =
+ "Amoy", ;Xiamen
+ "Choan Chiu", ;Quanzhou
+ "Chiang Chiu", ;Zhangzhou
+ "Hok Chiu", ; Fuzhou
+ "Taipak", ;Taipei
+ "Tai-Tiong", ;Taichung
+ "Tai-Lam", ;Tainan
+ "Chiang Hoa", ;Changhua
+ "Ko Hiong", ;Kaohsiung
+ "Liong Hai", ;Longhai
+ "Peh Chui", ;Baishui
+ "Hong Tek", ;Fengze
+ "Li Sia", ;Licheng
+ "Hiang Seng", ;Xiangcheng
+ "Liong Bun", ;Longwen
+ "Tio Thoa", ;Changtai
+ "Kang Boe", ;Gangwei
+ "Kak Bi", ;Jiaomei
+ "Hai Cheng", ; Haicang
+ "Su Beng", ;Siming
+ "Kolongsu", ;Gulangyu
+ "Olisu", ;Huli
+ "Chip Bi Khu", ;Jimei
+ "Tang-Oa", ;Tong'an
+ "Siong-An", ;Xiang'an
+
+;Distrincts of Taipei
+ "Pak-Tau", ;Beitou
+ "Lam-Kang", ;Nangang
+ "Su-Lim", ;Shilin
+ "Siong-San", ;Songshan
+ "Bang-Kah", ;Wanhua
+ "Bun-San", ;Wenshan
+ "Tiong-San", ;Zhongshan
+ "Tiong-Cheng", ;Zhongzheng
+ 
+;Districts of Taichung
+ "Sin-Kong",
+ "Soa-Lak",
+ "Toa-To",
+ "Liong-che",
+ "Goa-Po",
+ "Ho-Peng",
+ "Pak-Tun",
+ "Lam-Tun",
+ "Thai-Peng",
+ "Hong-Goan",
+ "Au Li",
+
+;Districts of Tainan
+ "An-pêng", ;Anping
+ "An-lâm", ;Annan
+ "Éng-khong", ;Yongkang
+ "Kui-jîn",
+ "Sin-hoa",
+ "Cho-tin",
+ "Giok-che",
+ "Lam-se",
+ "Lam-hoa",
+ "Jin-tek",
+ "Koan-bio",
+ "Liong-kia",
+ "Sian-hoa",
+ "San-siong",
+ "An-teng",
+ "Bak-meng",
+ "Chiong-Kun",
+ "Sai-kang",
+ "Peh-ho",
+ "Tong-san",
+ "Kiam-Chui",
+ "Toa-Lai",
+
+; Overseas Hokkien communities
+ "Manila", ;Manila
+ "Ongpin", ;street in Manila
+ "Los Angeles", ;Los Angeles
+ "San Francisco", ;San Francisco
+ "New York City", ;New York City
+ "Medan", ;Medan
+ "Jakarta",
+ "Ko-Thoh-Khek", ;Glodok
+ "Penang",
+ "Taman Sari",
+ "Pluit",
+ "Liau-Nai", ;Riau
+
+ "Kuala Lumpur", ;Kuala Lumpur
+ "Singapore" ;Singapore

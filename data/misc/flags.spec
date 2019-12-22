@@ -222,6 +222,7 @@ artists = "
    Hesse		Madden (Wikimedia Commons)
    Himyar		Daniel Markstedt
    Hittite		Daniel Markstedt
+   Hokkien		Joshua Go
    Honduras		Wikimedia Commons
    Hopi			Daniel Markstedt
    HRE			Gryffindor (Wikimedia Commons) and J.M. Maalderink
@@ -793,6 +794,7 @@ sprites =
 		"f.hesse", "flags/hesse"
 		"f.himyar", "flags/himyar"
 		"f.hittite", "flags/hittite"
+		"f.hokkien", "flags/hokkien"
 		"f.honduras", "flags/honduras"
 		"f.hopi", "flags/hopi"
 		"f.hre", "flags/hre"

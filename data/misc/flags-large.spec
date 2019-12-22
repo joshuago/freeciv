@@ -224,6 +224,7 @@ sprites =
 		"f.hesse", "flags/hesse-large"
 		"f.himyar", "flags/himyar-large"
 		"f.hittite", "flags/hittite-large"
+		"f.hokkien", "flags/hokkien-large"
 		"f.honduras", "flags/honduras-large"
 		"f.hopi", "flags/hopi-large"
 		"f.hre", "flags/hre-large"
