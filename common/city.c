@@ -845,6 +845,11 @@ bool can_city_build_improvement_later(const struct city *pcity,
   if (!can_player_build_improvement_later(city_owner(pcity), pimprove)) {
     return FALSE;
   }
+  /* If the city has the building, there's no reason to believe it can be built
+   * later (barring us selling it off or it getting sabotaged). */
+  if (city_has_building(pcity, pimprove)) {
+    return FALSE;
+  }
 
   /* Check for requirements that aren't met and that are unchanging (so
    * they can never be met). */
