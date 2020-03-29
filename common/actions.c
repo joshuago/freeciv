@@ -24,9 +24,9 @@
 #include "game.h"
 #include "map.h"
 #include "movement.h"
-#include "unit.h"
 #include "research.h"
 #include "tile.h"
+#include "unit.h"
 
 /* Values used to interpret action probabilities.
  *
@@ -1192,6 +1192,12 @@ static struct act_prob ap_diplomat_battle(const struct unit *pattacker,
 {
   fc_assert_ret_val(tgt_tile, ACTPROB_NOT_KNOWN);
 
+  if (!can_player_see_hypotetic_units_at(unit_owner(pattacker),
+                                         tgt_tile)) {
+    /* Don't leak information about unseen defenders. */
+    return ACTPROB_NOT_KNOWN;
+  }
+
   unit_list_iterate(tgt_tile->units, punit) {
     if (unit_owner(punit) == unit_owner(pattacker)) {
       /* Won't defend against its owner. */
@@ -1291,7 +1297,8 @@ action_prob(const enum gen_action wanted_action,
 
   switch (wanted_action) {
   case ACTION_SPY_POISON:
-    /* TODO */
+    /* All uncertainty comes from potential diplomatic battles. */
+    chance = ap_diplomat_battle(actor_unit, NULL, target_tile);
     break;
   case ACTION_SPY_STEAL_GOLD:
     /* TODO */
