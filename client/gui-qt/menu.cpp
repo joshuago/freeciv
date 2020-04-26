@@ -64,23 +64,6 @@ extern QApplication *qapp;
 
 static bool tradecity_rand(const trade_city *t1, const trade_city *t2);
 static void enable_interface(bool enable);
-extern int last_center_enemy;
-extern int last_center_capital;
-extern int last_center_player_city;
-extern int last_center_enemy_city;
-/**************************************************************************
-  New turn callback
-**************************************************************************/
-void qt_start_turn()
-{
-  gui()->rallies.run();
-  real_menus_update();
-  show_new_turn_info();
-  last_center_enemy = 0;
-  last_center_capital = 0;
-  last_center_player_city = 0;
-  last_center_enemy_city = 0;
-}
 
 /**************************************************************************
   Sends new built units to target tile
@@ -3120,7 +3103,10 @@ void mr_menu::tileset_custom_load()
   layout->addWidget(label);
 
   foreach (s, sl) {
-    poption = optset_option_by_name(client_optset, s.toLocal8Bit().data());
+    QByteArray on_bytes;
+
+    on_bytes = s.toLocal8Bit();
+    poption = optset_option_by_name(client_optset, on_bytes.data());
     tlset_list = get_tileset_list(poption);
     strvec_iterate(tlset_list, value) {
       but = new QPushButton(value);
@@ -3139,9 +3125,11 @@ void mr_menu::tileset_custom_load()
 void mr_menu::load_new_tileset()
 {
   QPushButton *but;
+  QByteArray tn_bytes;
 
   but = qobject_cast<QPushButton *>(sender());
-  tilespec_reread(but->text().toLocal8Bit().data(), true, 1.0f);
+  tn_bytes = but->text().toLocal8Bit();
+  tilespec_reread(tn_bytes.data(), true, 1.0f);
   gui()->map_scale = 1.0f;
   but->parentWidget()->close();
 }
@@ -3333,7 +3321,10 @@ void mr_menu::save_game_as()
                                               _("Save Game As..."),
                                               location, str);
   if (!current_file.isEmpty()) {
-    send_save_game(current_file.toLocal8Bit().data());
+    QByteArray cf_bytes;
+
+    cf_bytes = current_file.toLocal8Bit();
+    send_save_game(cf_bytes.data());
   }
 }
 

@@ -1467,11 +1467,15 @@ void transform_unit(struct unit *punit, struct unit_type *to_unit,
                          - game.server.upgrade_veteran_loss, 0);
   }
 
-  /* Scale HP and MP, rounding down.  Be careful with integer arithmetic,
-   * and don't kill the unit.  unit_move_rate is used to take into account
+  /* Scale HP and MP, rounding down. Be careful with integer arithmetic,
+   * and don't kill the unit. unit_move_rate() is used to take into account
    * global effects like Magellan's Expedition. */
   punit->hp = MAX(punit->hp * unit_type_get(punit)->hp / old_hp, 1);
-  punit->moves_left = punit->moves_left * unit_move_rate(punit) / old_mr;
+  if (old_mr == 0) {
+    punit->moves_left = unit_move_rate(punit);
+  } else {
+    punit->moves_left = punit->moves_left * unit_move_rate(punit) / old_mr;
+  }
 
   unit_forget_last_activity(punit);
 
@@ -2798,6 +2802,11 @@ bool do_paradrop(struct unit *punit, struct tile *ptile)
   }
 
   if (is_non_attack_city_tile(ptile, pplayer)
+      || (is_non_allied_city_tile(ptile, pplayer)
+          && (pplayer->ai_common.barbarian_type == ANIMAL_BARBARIAN
+              || !uclass_has_flag(unit_class_get(punit),
+                               UCF_CAN_OCCUPY_CITY)
+              || unit_has_type_flag(punit, UTYF_CIVILIAN)))
       || is_non_allied_unit_tile(ptile, pplayer)) {
     map_show_circle(pplayer, ptile, unit_type_get(punit)->vision_radius_sq);
     maybe_make_contact(ptile, pplayer);

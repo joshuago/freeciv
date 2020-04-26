@@ -494,7 +494,8 @@ void chatwdg::update_widgets()
 }
 
 /***************************************************************************
-  Sets chat to show only X(lines) lines
+  Returns how much space chatline of given number of lines would require,
+  or zero if it can't be determined.
 ***************************************************************************/
 int chatwdg::default_size(int lines)
 {
@@ -505,12 +506,17 @@ int chatwdg::default_size(int lines)
 
   qtb = chat_output->document()->firstBlock();
   /* Count all lines in all text blocks layouts
-   * document()->lineCount returns numer of lines without wordwrap */
+   * document()->lineCount returns number of lines without wordwrap */
 
   while (qtb.isValid()) {
     line_count = line_count + qtb.layout()->lineCount();
     qtb = qtb.next();
   }
+
+  if (line_count == 0) {
+    return 0;
+  }
+
   line_height = (chat_output->document()->size().height()
                  - 2 * chat_output->document()->documentMargin())
                 / line_count;
@@ -518,9 +524,9 @@ int chatwdg::default_size(int lines)
   size = lines * line_height
          + chat_line->size().height() + chat_output->document()->documentMargin();
   size = qMax(0, size);
+
   return size;
 }
-
 
 /***************************************************************************
   Makes link to tile/unit or city
@@ -556,10 +562,14 @@ QString apply_tags(QString str, const struct text_tag_list *tags,
   QByteArray qba;
   QColor qc;
   QMultiMap <int, QString> mm;
+  QByteArray str_bytes;
+
   if (tags == NULL) {
     return str;
   }
-  qba = str.toLocal8Bit().data();
+  str_bytes = str.toLocal8Bit();
+  qba = str_bytes.data();
+
   text_tag_list_iterate(tags, ptag) {
     if ((text_tag_stop_offset(ptag) == FT_OFFSET_UNSET)) {
       stop = qba.count();
