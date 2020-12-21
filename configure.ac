@@ -2,7 +2,7 @@ dnl configure.ac for freeciv
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([Freeciv], m4_esyscmd([./fc_version | tr -d '\n']),
-        [https://www.hostedredmine.com/projects/freeciv],
+        [https://www.freelists.org/list/freeciv-dev],
         [freeciv])
 AC_PREREQ(2.61)
 
@@ -1225,11 +1225,10 @@ fi
 AC_CHECK_LIB(nls,main)
 
 dnl Checks for header files.
-AC_HEADER_STDC
 AC_HEADER_SYS_WAIT
 AC_CHECK_HEADERS([fcntl.h sys/utsname.h \
                   sys/file.h signal.h strings.h execinfo.h \
-                  libgen.h])
+                  libgen.h time.h])
 AC_CHECK_HEADERS([sys/time.h], [AC_DEFINE([FREECIV_HAVE_SYS_TIME_H], [1], [sys/time.h available])])
 AC_CHECK_HEADERS([unistd.h], [AC_DEFINE([FREECIV_HAVE_UNISTD_H], [1], [unistd.h available])])
 AC_CHECK_HEADERS([locale.h], [AC_DEFINE([FREECIV_HAVE_LOCALE_H], [1], [locale.h available])])
@@ -1261,7 +1260,6 @@ fi
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
-AC_HEADER_TIME
 AC_STRUCT_TM
 AC_CHECK_TYPES([socklen_t], [AC_DEFINE([FREECIV_HAVE_SOCKLEN_T], [1], [Have socklen_t type defined])],
 [],
@@ -1298,8 +1296,8 @@ fi
 
 AC_CHECK_FUNCS([bind connect fileno flock ftime gethostbyname gethostname \
 		getpwuid inet_aton select snooze strcasecmp strcasestr \
-		strerror strlcat strlcpy strncasecmp strstr uname usleep \
-                getline _strcoll stricoll _stricoll strcasecoll \
+		strerror strlcat strlcpy strncasecmp strstr uname nanosleep \
+                usleep getline _strcoll stricoll _stricoll strcasecoll \
                 backtrace])
 
 dnl Possible "-Wmissing-declarations" and "-Werror" will prune out
@@ -1588,45 +1586,9 @@ AC_CONFIG_FILES([Makefile
 	  data/themes/gui-gtk-3.0/Makefile
 	  data/themes/gui-gtk-3.0/Freeciv/Makefile
 	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Arrows/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Buttons/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Check-Radio/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Combo/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Frame-Gap/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Handles/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Lines/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/ListHeaders/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Menu-Menubar/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Others/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Panel/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/ProgressBar/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Range/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Scrollbars/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Shadows/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Spin/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Tabs/Makefile
-	  data/themes/gui-gtk-3.0/Freeciv/gtk-3.0/Toolbar/Makefile
 	  data/themes/gui-gtk-3.22/Makefile
 	  data/themes/gui-gtk-3.22/Freeciv/Makefile
 	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Arrows/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Buttons/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Check-Radio/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Combo/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Frame-Gap/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Handles/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Lines/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/ListHeaders/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Menu-Menubar/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Others/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Panel/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/ProgressBar/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Range/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Scrollbars/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Shadows/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Spin/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Tabs/Makefile
-	  data/themes/gui-gtk-3.22/Freeciv/gtk-3.0/Toolbar/Makefile
 	  data/themes/gui-qt/Makefile
 	  data/themes/gui-qt/icons/Makefile
 	  data/themes/gui-qt/Classic/Makefile
@@ -1700,17 +1662,17 @@ AC_CONFIG_FILES([Makefile
           bootstrap/Makefile
 	  data/Freeciv
           lua/Makefile
-	  client/freeciv.desktop:bootstrap/freeciv.desktop.in
-	  client/freeciv-gtk3.22.desktop:bootstrap/freeciv-gtk3.22.desktop.in
-          client/freeciv-gtk2.desktop:bootstrap/freeciv-gtk2.desktop.in
-          client/freeciv-sdl.desktop:bootstrap/freeciv-sdl.desktop.in
-          client/freeciv-sdl2.desktop:bootstrap/freeciv-sdl2.desktop.in
-          client/freeciv-qt.desktop:bootstrap/freeciv-qt.desktop.in
-	  server/freeciv-server.desktop:bootstrap/freeciv-server.desktop.in
-	  tools/freeciv-mp-gtk3.desktop:bootstrap/freeciv-mp-gtk3.desktop.in
-	  tools/freeciv-mp-gtk2.desktop:bootstrap/freeciv-mp-gtk2.desktop.in
-	  tools/freeciv-mp-qt.desktop:bootstrap/freeciv-mp-qt.desktop.in
-	  tools/ruledit/freeciv-ruledit.desktop:bootstrap/freeciv-ruledit.desktop.in
+	  client/org.freeciv.gtk3.desktop:bootstrap/org.freeciv.gtk3.desktop.in
+	  client/org.freeciv.gtk322.desktop:bootstrap/org.freeciv.gtk322.desktop.in
+          client/org.freeciv.gtk2.desktop:bootstrap/org.freeciv.gtk2.desktop.in
+          client/org.freeciv.sdl.desktop:bootstrap/org.freeciv.sdl.desktop.in
+          client/org.freeciv.sdl2.desktop:bootstrap/org.freeciv.sdl2.desktop.in
+          client/org.freeciv.qt.desktop:bootstrap/org.freeciv.qt.desktop.in
+	  server/org.freeciv.server.desktop:bootstrap/org.freeciv.server.desktop.in
+	  tools/org.freeciv.mp.gtk3.desktop:bootstrap/org.freeciv.mp.gtk3.desktop.in
+	  tools/org.freeciv.mp.gtk2.desktop:bootstrap/org.freeciv.mp.gtk2.desktop.in
+	  tools/org.freeciv.mp.qt.desktop:bootstrap/org.freeciv.mp.qt.desktop.in
+	  tools/ruledit/org.freeciv.ruledit.desktop:bootstrap/org.freeciv.ruledit.desktop.in
           client/freeciv-gtk2.appdata.xml:bootstrap/freeciv-gtk2.appdata.xml.in
           client/freeciv-gtk3.appdata.xml:bootstrap/freeciv-gtk3.appdata.xml.in
           client/freeciv-gtk3.22.appdata.xml:bootstrap/freeciv-gtk3.22.appdata.xml.in

@@ -1280,6 +1280,7 @@ bool tilespec_reread(const char *new_tileset_name,
   const char *name = new_tileset_name ? new_tileset_name : tileset->name;
   char tileset_name[strlen(name) + 1], old_name[strlen(tileset->name) + 1];
   bool new_tileset_in_use;
+  int ts_topo;
 
   /* Make local copies since these values may be freed down below */
   sz_strlcpy(tileset_name, name);
@@ -1360,9 +1361,10 @@ bool tilespec_reread(const char *new_tileset_name,
     return new_tileset_in_use;
   }
 
-  if (tileset_map_topo_compatible(game.map.topology_id, tileset)
+  if (tileset_map_topo_compatible(game.map.topology_id, tileset, &ts_topo)
       == TOPO_INCOMP_HARD) {
-    tileset_error(LOG_NORMAL, _("Map topology and tileset incompatible."));
+    tileset_error(LOG_NORMAL, _("Map topology (%s) and tileset (%s) incompatible."),
+                  describe_topology(game.map.topology_id), describe_topology(ts_topo));
   }
 
   terrain_type_iterate(pterrain) {
@@ -1570,7 +1572,8 @@ static void scan_specfile(struct tileset *t, struct specfile *sf,
                                  "%s.y_top_left", sec_name)
           || !secfile_lookup_int(file, &dx, "%s.dx", sec_name)
           || !secfile_lookup_int(file, &dy, "%s.dy", sec_name)) {
-        log_error("Grid \"%s\" invalid: %s", sec_name, secfile_error());
+        log_error("%s grid \"%s\" invalid: %s",
+                  sf->file_name, sec_name, secfile_error());
         continue;
       }
 
@@ -1590,8 +1593,8 @@ static void scan_specfile(struct tileset *t, struct specfile *sf,
             || !(tags = secfile_lookup_str_vec(file, &num_tags,
                                                "%s.tiles%d.tag",
                                                sec_name, j))) {
-          log_error("Small sprite \"%s.tiles%d\" invalid: %s",
-                    sec_name, j, secfile_error());
+          log_error("%s small sprite \"%s.tiles%d\" invalid: %s",
+                    sf->file_name, sec_name, j, secfile_error());
           continue;
         }
         hot_x = secfile_lookup_int_default(file, 0, "%s.tiles%d.hot_x",
@@ -1622,8 +1625,8 @@ static void scan_specfile(struct tileset *t, struct specfile *sf,
         if (!duplicates_ok) {
           for (k = 0; k < num_tags; k++) {
             if (!sprite_hash_insert(t->sprite_hash, tags[k], ss)) {
-              log_error("warning: already have a sprite for \"%s\".",
-                        tags[k]);
+              log_error("warning: %s already has a sprite for \"%s\".",
+                        tileset_name_get(t), tags[k]);
             }
           }
         } else {
@@ -1652,8 +1655,8 @@ static void scan_specfile(struct tileset *t, struct specfile *sf,
                                         "extra.sprites%d.tag", i))
         || !(filename = secfile_lookup_str(file,
                                            "extra.sprites%d.file", i))) {
-      log_error("Extra sprite \"extra.sprites%d\" invalid: %s",
-                i, secfile_error());
+      log_error("%s extra sprite \"extra.sprites%d\" invalid: %s",
+                sf->file_name, i, secfile_error());
       continue;
     }
     hot_x = secfile_lookup_int_default(file, 0, "extra.sprites%d.hot_x", i);
@@ -1672,7 +1675,8 @@ static void scan_specfile(struct tileset *t, struct specfile *sf,
     if (!duplicates_ok) {
       for (k = 0; k < num_tags; k++) {
         if (!sprite_hash_insert(t->sprite_hash, tags[k], ss)) {
-          log_error("warning: already have a sprite for \"%s\".", tags[k]);
+          log_error("warning: %s already have a sprite for \"%s\".",
+                    tileset_name_get(t), tags[k]);
         }
       }
     } else {
@@ -4672,10 +4676,17 @@ static int fill_city_overlays_sprite_array(const struct tileset *t,
       }
     } else if (NULL != pwork && pwork == pcity
                && (citymode || gui_options.draw_city_output)) {
-      /* Add on the tile output sprites. */
-      int food = city_tile_output_now(pcity, ptile, O_FOOD);
-      int shields = city_tile_output_now(pcity, ptile, O_SHIELD);
-      int trade = city_tile_output_now(pcity, ptile, O_TRADE);
+
+      /* Add on the tile output sprites.
+       * NOTE: To show correct output on end of turn
+       * base_city_celebrating() must be used instead of city_celebrating()
+       * mirroring the behavior of the server that does so in
+       * city_tile_cache_update(). */
+      bool celebrating = base_city_celebrating(pcity);
+      int food = city_tile_output(pcity, ptile, celebrating, O_FOOD);
+      int shields = city_tile_output(pcity, ptile, celebrating, O_SHIELD);
+      int trade = city_tile_output(pcity, ptile, celebrating, O_TRADE);
+
       const int ox = t->type == TS_ISOMETRIC ? t->normal_tile_width / 3 : 0;
       const int oy = t->type == TS_ISOMETRIC ? -t->normal_tile_height / 3 : 0;
 
@@ -5874,9 +5885,11 @@ int fill_sprite_array(struct tileset *t,
             }
             break;
           case ACTIVITY_GEN_ROAD:
-            ADD_SPRITE(t->sprites.extras[extra_index(ptask->tgt)].activity,
-                       TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
-                       FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            if (ptask->tgt != NULL) {
+              ADD_SPRITE(t->sprites.extras[extra_index(ptask->tgt)].activity,
+                         TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
+                         FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            }
             break;
           case ACTIVITY_TRANSFORM:
             ADD_SPRITE(t->sprites.unit.transform,
@@ -5885,9 +5898,11 @@ int fill_sprite_array(struct tileset *t,
             break;
           case ACTIVITY_POLLUTION:
           case ACTIVITY_FALLOUT:
-            ADD_SPRITE(t->sprites.extras[extra_index(ptask->tgt)].rmact,
-                       TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
-                       FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            if (ptask->tgt != NULL) {
+              ADD_SPRITE(t->sprites.extras[extra_index(ptask->tgt)].rmact,
+                         TRUE, FULL_TILE_X_OFFSET + t->activity_offset_x,
+                         FULL_TILE_Y_OFFSET + t->activity_offset_y);
+            }
             break;
           default:
             break;

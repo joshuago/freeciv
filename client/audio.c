@@ -56,7 +56,6 @@ static int num_plugins_used = 0;
 static int selected_plugin = -1;
 static int current_track = -1;
 static enum music_usage current_usage;
-static bool switching_usage = FALSE;
 
 static struct mfcb_data
 {
@@ -66,7 +65,7 @@ static struct mfcb_data
 
 static int audio_play_tag(struct section_file *sfile,
                           const char *tag, bool repeat,
-                          int exclude, bool keepstyle);
+                          int exclude, bool keep_old_style);
 
 /**********************************************************************
   Returns a static string vector of all sound plugins
@@ -372,11 +371,6 @@ static void music_finished_callback(void)
 {
   bool usage_enabled = TRUE;
 
-  if (switching_usage) {
-    switching_usage = FALSE;
-    return;
-  }
-
   switch (current_usage) {
   case MU_SINGLE:
     usage_enabled = FALSE;
@@ -401,7 +395,7 @@ static void music_finished_callback(void)
 **************************************************************************/
 static int audio_play_tag(struct section_file *sfile,
                           const char *tag, bool repeat, int exclude,
-                          bool keepstyle)
+                          bool keep_old_style)
 {
   const char *soundfile;
   const char *fullpath = NULL;
@@ -450,7 +444,7 @@ static int audio_play_tag(struct section_file *sfile,
           ret++;
         }
         if (repeat) {
-          if (!keepstyle) {
+          if (!keep_old_style) {
             mfcb.sfile = sfile;
             mfcb.tag = tag;
           }
@@ -487,9 +481,9 @@ static bool audio_play_sound_tag(const char *tag, bool repeat)
   Play tag from music set
 **************************************************************************/
 static int audio_play_music_tag(const char *tag, bool repeat,
-                                bool keepstyle)
+                                bool keep_old_style)
 {
-  return audio_play_tag(ms_tagfile, tag, repeat, -1, keepstyle);
+  return audio_play_tag(ms_tagfile, tag, repeat, -1, keep_old_style);
 }
 
 /**************************************************************************
@@ -517,7 +511,7 @@ void audio_play_sound(const char *const tag, char *const alt_tag)
   music.
 **************************************************************************/
 static void real_audio_play_music(const char *const tag, char *const alt_tag,
-                                  bool keepstyle)
+                                  bool keep_old_style)
 {
   char *pretty_alt_tag = alt_tag ? alt_tag : "(null)";
 
@@ -526,10 +520,10 @@ static void real_audio_play_music(const char *const tag, char *const alt_tag,
   log_debug("audio_play_music('%s', '%s')", tag, pretty_alt_tag);
 
   /* try playing primary tag first, if not go to alternative tag */
-  current_track = audio_play_music_tag(tag, TRUE, keepstyle);
+  current_track = audio_play_music_tag(tag, TRUE, keep_old_style);
 
   if (current_track < 0) {
-    current_track = audio_play_music_tag(alt_tag, TRUE, keepstyle);
+    current_track = audio_play_music_tag(alt_tag, TRUE, keep_old_style);
 
     if (current_track < 0) {
       log_verbose("Neither of tags %s or %s found", tag, pretty_alt_tag);
@@ -571,7 +565,6 @@ void audio_stop(void)
 **************************************************************************/
 void audio_stop_usage(void)
 {
-  switching_usage = TRUE;
   plugins[selected_plugin].stop();
 }
 

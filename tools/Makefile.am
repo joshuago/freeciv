@@ -56,21 +56,21 @@ appdatafile_DATA =
 
 if MODINST_GTK2
 desktopfile_DATA += \
-	freeciv-mp-gtk2.desktop
+	org.freeciv.mp.gtk2.desktop
 appdatafile_DATA += \
 	freeciv-mp-gtk2.appdata.xml
 endif
 
 if MODINST_GTK3
 desktopfile_DATA += \
-	freeciv-mp-gtk3.desktop
+	org.freeciv.mp.gtk3.desktop
 appdatafile_DATA += \
 	freeciv-mp-gtk3.appdata.xml
 endif
 
 if MODINST_QT
 desktopfile_DATA += \
-	freeciv-mp-qt.desktop
+	org.freeciv.mp.qt.desktop
 appdatafile_DATA += \
 	freeciv-mp-qt.appdata.xml
 endif

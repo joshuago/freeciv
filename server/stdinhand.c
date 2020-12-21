@@ -104,6 +104,8 @@ static time_t *time_duplicate(const time_t *t);
 #define SPECHASH_IDATA_TO_UDATA(p) (NULL != p ? *p : 0)
 #include "spechash.h"
 
+const char *script_extension = ".serv";
+
 static struct kick_hash *kick_table_by_addr = NULL;
 static struct kick_hash *kick_table_by_user = NULL;
 
@@ -1142,10 +1144,10 @@ static bool read_init_script_real(struct connection *caller,
                                   bool check, int read_recursion)
 {
   FILE *script_file;
-  const char extension[] = ".serv";
-  char serv_filename[strlen(extension) + strlen(script_filename) + 2];
+  char serv_filename[strlen(script_extension) + strlen(script_filename) + 2];
   char tilde_filename[4096];
   const char *real_filename;
+  size_t fnlen;
 
   /* check recursion depth */
   if (read_recursion > GAME_MAX_READ_RECURSION) {
@@ -1154,11 +1156,12 @@ static bool read_init_script_real(struct connection *caller,
   }
 
   /* abuse real_filename to find if we already have a .serv extension */
-  real_filename = script_filename + strlen(script_filename) 
-                  - MIN(strlen(extension), strlen(script_filename));
-  if (strcmp(real_filename, extension) != 0) {
+  fnlen = strlen(script_filename);
+  real_filename = script_filename + fnlen
+                  - MIN(strlen(script_extension), fnlen);
+  if (strcmp(real_filename, script_extension) != 0) {
     fc_snprintf(serv_filename, sizeof(serv_filename), "%s%s", 
-                script_filename, extension);
+                script_filename, script_extension);
   } else {
     sz_strlcpy(serv_filename, script_filename);
   }
@@ -1229,7 +1232,7 @@ struct strvec *get_init_script_choices(void)
 
   (Should this take a 'caller' argument for output? --dwp)
 **************************************************************************/
-static void write_init_script(char *script_filename)
+static bool write_init_script(char *script_filename)
 {
   char real_filename[1024], buf[256];
   FILE *script_file;
@@ -1279,8 +1282,11 @@ static void write_init_script(char *script_filename)
 
     fclose(script_file);
 
+    return TRUE;
   } else {
     log_error(_("Could not write script file '%s'."), real_filename);
+
+    return FALSE;
   }
 }
 
@@ -1295,8 +1301,31 @@ static bool write_command(struct connection *caller, char *arg, bool check)
               " for security reasons."));
     return FALSE;
   } else if (!check) {
-    write_init_script(arg);
+    char serv_filename[strlen(script_extension) + strlen(arg) + 2];
+    const char *real_filename;
+    size_t arglen = strlen(arg);
+
+    /* abuse real_filename to find if we already have a .serv extension */
+    real_filename = arg + arglen - MIN(strlen(script_extension), arglen);
+    if (strcmp(real_filename, script_extension) != 0) {
+      fc_snprintf(serv_filename, sizeof(serv_filename), "%s%s",
+                  arg, script_extension);
+    } else {
+      sz_strlcpy(serv_filename, arg);
+    }
+
+    if (!write_init_script(serv_filename)) {
+      cmd_reply(CMD_WRITE_SCRIPT, caller, C_FAIL,
+                /* TRANS: Failed to write server script, e.g., 'example.serv' */
+                _("Failed to write %s."), serv_filename);
+      return FALSE;
+    }
+
+    cmd_reply(CMD_WRITE_SCRIPT, caller, C_OK,
+              /* TRANS: Wrote server script, e.g., 'example.serv' */
+              _("Wrote %s."), serv_filename);
   }
+
   return TRUE;
 }
 
@@ -1406,8 +1435,12 @@ static bool cmdlevel_command(struct connection *caller, char *str, bool check)
               _("Command access levels in effect:"));
     cmd_reply(CMD_CMDLEVEL, caller, C_COMMENT, horiz_line);
     conn_list_iterate(game.est_connections, pconn) {
-      cmd_reply(CMD_CMDLEVEL, caller, C_COMMENT, "cmdlevel %s %s",
-                cmdlevel_name(conn_get_access(pconn)), pconn->username);
+      const char *lvl_name = cmdlevel_name(conn_get_access(pconn));
+
+      if (lvl_name != NULL) {
+        cmd_reply(CMD_CMDLEVEL, caller, C_COMMENT, "cmdlevel %s %s",
+                  lvl_name, pconn->username);
+      }
     } conn_list_iterate_end;
     cmd_reply(CMD_CMDLEVEL, caller, C_COMMENT,
               _("Command access level for new connections: %s"),
