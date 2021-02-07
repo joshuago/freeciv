@@ -78,11 +78,11 @@ static struct widget *pOrder_Transform_Button;
 static struct widget *pOrder_Trade_Button;
 
 #define local_show(ID)                                                \
-  clear_wflag(get_widget_pointer_form_ID(pBeginOrderWidgetList, ID, SCAN_FORWARD), \
+  clear_wflag(get_widget_pointer_from_id(pBeginOrderWidgetList, ID, SCAN_FORWARD), \
               WF_HIDDEN)
 
 #define local_hide(ID)                                             \
-  set_wflag(get_widget_pointer_form_ID(pBeginOrderWidgetList, ID, SCAN_FORWARD), \
+  set_wflag(get_widget_pointer_from_id(pBeginOrderWidgetList, ID, SCAN_FORWARD), \
             WF_HIDDEN )
 
 
@@ -943,25 +943,6 @@ void undraw_order_widgets(void)
       widget_undraw(pTmpWidget);
       widget_mark_dirty(pTmpWidget);
     }
-
-    if (pTmpWidget == pEndOrderWidgetList) {
-      break;
-    }
-
-    pTmpWidget = pTmpWidget->next;
-  }
-}
-
-/**************************************************************************
-  Free surfaces of the unit order widgets.
-  TODO: Unused -> Remove
-**************************************************************************/
-void free_bcgd_order_widgets(void)
-{
-  struct widget *pTmpWidget = pBeginOrderWidgetList;
-
-  while (TRUE) {
-    FREESURFACE(pTmpWidget->gfx);
 
     if (pTmpWidget == pEndOrderWidgetList) {
       break;

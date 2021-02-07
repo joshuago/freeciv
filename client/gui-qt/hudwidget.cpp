@@ -122,7 +122,7 @@ void hud_message_box::keyPressEvent(QKeyEvent *event)
 /****************************************************************************
   Sets text and title and shows message box
 ****************************************************************************/
-void hud_message_box::set_text_title(QString s1, QString s2)
+int hud_message_box::set_text_title(QString s1, QString s2, bool do_exec)
 {
   QSpacerItem *spacer;
   QGridLayout *layout;
@@ -135,10 +135,10 @@ void hud_message_box::set_text_title(QString s1, QString s2)
     cs1 = s1.left(i);
     cs2 = s1.right(s1.count() - i);
     mult = 2;
-    w2 = qMax(fm_text->width(cs1), fm_text->width(cs2));
-    w = qMax(w2, fm_title->width(s2));
+    w2 = qMax(fm_text->horizontalAdvance(cs1), fm_text->horizontalAdvance(cs2));
+    w = qMax(w2, fm_title->horizontalAdvance(s2));
   } else {
-    w = qMax(fm_text->width(s1), fm_title->width(s2));
+    w = qMax(fm_text->horizontalAdvance(s1), fm_title->horizontalAdvance(s2));
   }
   w = w + 20;
   h = mult * (fm_text->height() * 3 / 2) + 2 * fm_title->height();
@@ -158,9 +158,12 @@ void hud_message_box::set_text_title(QString s1, QString s2)
              (parentWidget()->height() - h) / 2);
   p = parentWidget()->mapToGlobal(p);
   move(p);
-  show();
+  if (!do_exec) {
+    show();
+  }
   m_timer.start();
   startTimer(45);
+  return (do_exec) ? exec () : 0;
 }
 
 /****************************************************************************
@@ -211,16 +214,16 @@ void hud_message_box::paintEvent(QPaintEvent *event)
   p.fillRect(ry, QColor(palette().color(QPalette::AlternateBase)));
   p.fillRect(rfull, g);
   p.setFont(f_title);
-  p.drawText((width() - fm_title->width(title)) / 2,
+  p.drawText((width() - fm_title->horizontalAdvance(title)) / 2,
              fm_title->height() * 4 / 3, title);
   p.setFont(f_text);
   if (mult == 1) {
-    p.drawText((width() - fm_text->width(text)) / 2,
+    p.drawText((width() - fm_text->horizontalAdvance(text)) / 2,
               2 * fm_title->height() + fm_text->height() * 4 / 3, text);
   } else {
-    p.drawText((width() - fm_text->width(cs1)) / 2,
+    p.drawText((width() - fm_text->horizontalAdvance(cs1)) / 2,
               2 * fm_title->height() + fm_text->height() * 4 / 3, cs1);
-    p.drawText((width() - fm_text->width(cs2)) / 2,
+    p.drawText((width() - fm_text->horizontalAdvance(cs2)) / 2,
               2 * fm_title->height() + fm_text->height() * 8 / 3, cs2);
   }
   p.end();
@@ -402,10 +405,10 @@ void hud_input_box::set_text_title_definput(QString s1, QString s2,
     cs1 = s1.left(i);
     cs2 = s1.right(s1.count() - i);
     mult = 2;
-    w2 = qMax(fm_text->width(cs1), fm_text->width(cs2));
-    w = qMax(w2, fm_title->width(s2));
+    w2 = qMax(fm_text->horizontalAdvance(cs1), fm_text->horizontalAdvance(cs2));
+    w = qMax(w2, fm_title->horizontalAdvance(s2));
   } else {
-    w = qMax(fm_text->width(s1), fm_title->width(s2));
+    w = qMax(fm_text->horizontalAdvance(s1), fm_title->horizontalAdvance(s2));
   }
   w = w + 20;
   h = mult * (fm_text->height() * 3 / 2) + 2 * fm_title->height();
@@ -490,16 +493,16 @@ void hud_input_box::paintEvent(QPaintEvent *event)
   p.fillRect(ry, QColor(palette().color(QPalette::AlternateBase)));
   p.fillRect(rx, g);
   p.setFont(f_title);
-  p.drawText((width() - fm_title->width(title)) / 2,
+  p.drawText((width() - fm_title->horizontalAdvance(title)) / 2,
              fm_title->height() * 4 / 3, title);
   p.setFont(f_text);
   if (mult == 1) {
-    p.drawText((width() - fm_text->width(text)) / 2,
+    p.drawText((width() - fm_text->horizontalAdvance(text)) / 2,
               2 * fm_title->height() + fm_text->height() * 4 / 3, text);
   } else {
-    p.drawText((width() - fm_text->width(cs1)) / 2,
+    p.drawText((width() - fm_text->horizontalAdvance(cs1)) / 2,
               2 * fm_title->height() + fm_text->height() * 4 / 3, cs1);
-    p.drawText((width() - fm_text->width(cs2)) / 2,
+    p.drawText((width() - fm_text->horizontalAdvance(cs2)) / 2,
               2 * fm_title->height() + fm_text->height() * 8 / 3, cs2);
   }
   p.end();
@@ -656,7 +659,7 @@ void hud_units::update_actions(unit_list *punits)
   font.setPixelSize((text_label.height() * 9) / 10);
   text_label.setFont(font);
   fm = new QFontMetrics(font);
-  text_label.setFixedWidth(fm->width(text_str) + 20);
+  text_label.setFixedWidth(fm->horizontalAdvance(text_str) + 20);
   delete fm;
 
   unit_pixmap = qtg_canvas_create(tileset_unit_width(tileset),
@@ -718,7 +721,7 @@ void hud_units::update_actions(unit_list *punits)
                                  move_pt_text);
   font.setPointSize(pix.height() / 5);
   fm = new QFontMetrics(font);
-  font_width = (fm->width(move_pt_text) * 3) / 5;
+  font_width = (fm->horizontalAdvance(move_pt_text) * 3) / 5;
   delete fm;
   p.setFont(font);
   if (!fraction1.isNull()) {
@@ -2071,19 +2074,31 @@ void hud_battle_log::moveEvent(QMoveEvent *event)
 }
 
 /****************************************************************************
+  Timer event inner foreach() loop. Implemented as separate method
+  to avoid compiler shadow warning about internal variables of
+  foreach() inside foreach().
+****************************************************************************/
+void hud_battle_log::te_inner()
+{
+  hud_unit_combat *hupdate;
+
+  foreach (hupdate, lhuc) {
+    hupdate->set_fading(1.0);
+  }
+}
+
+/****************************************************************************
   Timer event. Starts/stops fading
 ****************************************************************************/
 void hud_battle_log::timerEvent(QTimerEvent *event)
 {
   hud_unit_combat *hudc;
-  hud_unit_combat *hupdate;
+
   if (m_timer.elapsed() > 4000 && m_timer.elapsed() < 5000) {
     foreach (hudc, lhuc) {
       if (hudc->get_focus()) {
         m_timer.restart();
-        foreach (hupdate, lhuc) {
-          hupdate->set_fading(1.0);
-        }
+        te_inner();
         return;
       }
       hudc->set_fading((5000.0 - m_timer.elapsed()) / 1000);

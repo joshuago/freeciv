@@ -52,6 +52,10 @@
 #include "ratesdlg.h"
 #include "voteinfo_bar.h"
 
+#if QT_VERSION < 0x050b00
+#define horizontalAdvance width
+#endif
+
 enum connection_state {
   LOGIN_TYPE,
   NEW_PASSWORD_TYPE,
@@ -175,7 +179,6 @@ class fc_client : public QMainWindow,
 
   QGridLayout *pages_layout[PAGE_GAME + 2];
   QStackedLayout *central_layout;
-  QGridLayout *game_layout;
 
   QTextEdit *output_window;
   QTextEdit *scenarios_view;

@@ -275,6 +275,25 @@ void trade_generator::remove_virtual_city(tile *ptile)
   }
 }
 
+/**************************************************************************
+  Inner foreach() loop of trade_generator::calculate()
+  Implemented as separate function to avoid shadow warnings about
+  internal variables of foreach() inside foreach()
+**************************************************************************/
+void trade_generator::calculate_inner(trade_city *tc)
+{
+  trade_city *ttc;
+
+  foreach (ttc, cities) {
+    if (!have_cities_trade_route(tc->city, ttc->city)
+        && can_establish_trade_route(tc->city, ttc->city)) {
+      tc->poss_trade_num++;
+      tc->pos_cities.append(ttc->city);
+    }
+    tc->over_max = tc->trade_num + tc->poss_trade_num
+      - max_trade_routes(tc->city);
+  }
+}
 
 /**************************************************************************
   Finds trade routes to establish
@@ -282,7 +301,6 @@ void trade_generator::remove_virtual_city(tile *ptile)
 void trade_generator::calculate()
 {
   trade_city *tc;
-  trade_city *ttc;
   int i;
   bool tdone;
 
@@ -318,15 +336,7 @@ void trade_generator::calculate()
       tc->new_tr_cities.clear();
       tc->curr_tr_cities.clear();
       tc->done = false;
-      foreach (ttc, cities) {
-        if (!have_cities_trade_route(tc->city, ttc->city)
-            && can_establish_trade_route(tc->city, ttc->city)) {
-          tc->poss_trade_num++;
-          tc->pos_cities.append(ttc->city);
-        }
-        tc->over_max = tc->trade_num + tc->poss_trade_num
-                       - max_trade_routes(tc->city);
-      }
+      calculate_inner(tc);
     }
 
     find_certain_routes();
@@ -473,42 +483,54 @@ bool trade_generator::discard_any(trade_city* tc, int freeroutes)
 }
 
 /**************************************************************************
+  Inner foreach() loop of trade_generator::find_certain_routes()
+  Implemented as separate function to avoid shadow warnings about
+  internal variables of foreach() inside foreach()
+**************************************************************************/
+void trade_generator::find_certain_routes_inner(trade_city *tc)
+{
+  trade_city *ttc;
+
+  foreach (ttc, cities) {
+    if (ttc->done || ttc->over_max > 0
+        || tc == ttc || tc->done || tc->over_max > 0) {
+      continue;
+    }
+    if (tc->pos_cities.contains(ttc->city)
+        && ttc->pos_cities.contains(tc->city)) {
+      struct qtiles gilles;
+
+      tc->pos_cities.removeOne(ttc->city);
+      ttc->pos_cities.removeOne(tc->city);
+      tc->poss_trade_num--;
+      ttc->poss_trade_num--;
+      tc->new_tr_cities.append(ttc->city);
+      ttc->new_tr_cities.append(ttc->city);
+      tc->trade_num++;
+      ttc->trade_num++;
+      tc->over_max--;
+      ttc->over_max--;
+      check_if_done(tc, ttc);
+      gilles.t1 = tc->city->tile;
+      gilles.t2 = ttc->city->tile;
+      gilles.autocaravan = nullptr;
+      lines.append(gilles);
+    }
+  }
+}
+
+/**************************************************************************
   Adds routes for cities which can only have maximum possible trade routes
 **************************************************************************/
 void trade_generator::find_certain_routes()
 {
   trade_city *tc;
-  trade_city *ttc;
 
   foreach (tc, cities) {
     if (tc->done || tc->over_max > 0) {
       continue;
     }
-    foreach (ttc, cities) {
-      if (ttc->done || ttc->over_max > 0
-          || tc == ttc || tc->done || tc->over_max > 0) {
-        continue;
-      }
-      if (tc->pos_cities.contains(ttc->city)
-          && ttc->pos_cities.contains(tc->city)) {
-        struct qtiles gilles;
-        tc->pos_cities.removeOne(ttc->city);
-        ttc->pos_cities.removeOne(tc->city);
-        tc->poss_trade_num--;
-        ttc->poss_trade_num--;
-        tc->new_tr_cities.append(ttc->city);
-        ttc->new_tr_cities.append(ttc->city);
-        tc->trade_num++;
-        ttc->trade_num++;
-        tc->over_max--;
-        ttc->over_max--;
-        check_if_done(tc, ttc);
-        gilles.t1 = tc->city->tile;
-        gilles.t2 = ttc->city->tile;
-        gilles.autocaravan = nullptr;
-        lines.append(gilles);
-      }
-    }
+    find_certain_routes_inner(tc);
   }
 }
 
@@ -1480,12 +1502,30 @@ void mr_menu::set_tile_for_order(tile *ptile)
   }
 }
 
+/**************************************************************************
+  Inner foreach() loop of mr_menu::execute_shortcut()
+  Implemented as separate function to avoid shadow warnings about
+  internal variables of foreach() inside foreach()
+**************************************************************************/
+bool mr_menu::execute_shortcut_inner(const QMenu *m, QKeySequence seq)
+{
+  foreach (QAction *a, m->actions()) {
+    if (a->shortcut() == seq && a->isEnabled()) {
+      a->activate(QAction::Trigger);
+
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
 /****************************************************************************
   Finds QAction bounded to given shortcut and triggers it
 ****************************************************************************/
 void mr_menu::execute_shortcut(int sid)
 {
-  QList<QMenu*> menu_list;
+  QList<QMenu*> menus;
   QKeySequence seq;
   fc_shortcut *fcs;
 
@@ -1497,15 +1537,30 @@ void mr_menu::execute_shortcut(int sid)
   fcs = fc_shortcuts::sc()->get_shortcut(static_cast<shortcut_id>(sid));
   seq = QKeySequence(shortcut_to_string(fcs));
 
-  menu_list = findChildren<QMenu*>();
-    foreach (const QMenu *m, menu_list) {
-        foreach (QAction *a, m->actions()) {
-          if (a->shortcut() == seq && a->isEnabled()) {
-            a->activate(QAction::Trigger);
-            return;
-          }
-        }
+  menus = findChildren<QMenu*>();
+  foreach (const QMenu *m, menus) {
+    if (execute_shortcut_inner(m, seq)) {
+      return;
     }
+  }
+}
+
+/**************************************************************************
+  Inner foreach() loop of mr_menu::shortcut_exist()
+  Implemented as separate function to avoid shadow warnings about
+  internal variables of foreach() inside foreach()
+**************************************************************************/
+bool mr_menu::shortcut_exist_inner(const QMenu *m, QKeySequence seq,
+                                   fc_shortcut *fcs, QString *ret)
+{
+  foreach (QAction *a, m->actions()) {
+    if (a->shortcut() == seq && fcs->mouse == Qt::AllButtons) {
+      *ret = a->text();
+      return TRUE;
+    }
+  }
+
+  return FALSE;
 }
 
 /****************************************************************************
@@ -1513,20 +1568,40 @@ void mr_menu::execute_shortcut(int sid)
 ****************************************************************************/
 QString mr_menu::shortcut_exist(fc_shortcut *fcs)
 {
-  QList<QMenu*> menu_list;
+  QList<QMenu*> menus;
   QKeySequence seq;
 
   seq = QKeySequence(shortcut_to_string(fcs));
-  menu_list = findChildren<QMenu *>();
-  foreach (const QMenu *m, menu_list) {
-    foreach (QAction *a, m->actions()) {
-      if (a->shortcut() == seq && fcs->mouse == Qt::AllButtons) {
-        return a->text();
-      }
+  menus = findChildren<QMenu *>();
+  foreach (const QMenu *m, menus) {
+    QString ret;
+
+    if (shortcut_exist_inner(m, seq, fcs, &ret)) {
+      return ret;
     }
   }
 
   return QString();
+}
+
+/**************************************************************************
+  Inner foreach() loop of mr_menu::shortcut_2_menustring()
+  Implemented as separate function to avoid shadow warnings about
+  internal variables of foreach() inside foreach()
+**************************************************************************/
+bool mr_menu::shortcut_2_menustring_inner(const QMenu *m, QKeySequence seq,
+                                          QString *ret)
+{
+  foreach (QAction *a, m->actions()) {
+    if (a->shortcut() == seq) {
+      *ret = a->text() + " ("
+        + a->shortcut().toString(QKeySequence::NativeText) + ")";
+
+      return TRUE;
+    }
+  }
+
+  return FALSE;
 }
 
 /****************************************************************************
@@ -1534,22 +1609,22 @@ QString mr_menu::shortcut_exist(fc_shortcut *fcs)
 ****************************************************************************/
 QString mr_menu::shortcut_2_menustring(int sid)
 {
-  QList<QMenu *> menu_list;
+  QList<QMenu *> menus;
   QKeySequence seq;
   fc_shortcut *fcs;
 
   fcs = fc_shortcuts::sc()->get_shortcut(static_cast<shortcut_id>(sid));
   seq = QKeySequence(shortcut_to_string(fcs));
 
-  menu_list = findChildren<QMenu *>();
-  foreach (const QMenu *m, menu_list) {
-    foreach (QAction *a, m->actions()) {
-      if (a->shortcut() == seq) {
-        return (a->text() + " ("
-                + a->shortcut().toString(QKeySequence::NativeText) + ")");
-      }
+  menus = findChildren<QMenu *>();
+  foreach (const QMenu *m, menus) {
+    QString ret;
+
+    if (shortcut_2_menustring_inner(m, seq, &ret)) {
+      return ret;
     }
   }
+
   return QString();
 }
 
@@ -1707,7 +1782,7 @@ void mr_menu::menus_sensitive()
   } players_iterate_end;
 
   /** Disable first all sensitive menus */
-  foreach(QAction * a, menu_list) {
+  foreach(QAction *a, menu_list) {
     a->setEnabled(false);
   }
 
@@ -3006,7 +3081,9 @@ void mr_menu::slot_select_one()
 ***************************************************************************/
 void mr_menu::slot_select_same_continent()
 {
-  request_unit_select(get_units_in_focus(), SELTYPE_SAME, SELLOC_CONT);
+  if (!gui_options.unit_selection_clears_orders || confirm_disruptive_selection()) {
+    request_unit_select(get_units_in_focus(), SELTYPE_SAME, SELLOC_CONT);
+  }
 }
 
 /***************************************************************************
@@ -3014,7 +3091,9 @@ void mr_menu::slot_select_same_continent()
 ***************************************************************************/
 void mr_menu::slot_select_same_everywhere()
 {
-  request_unit_select(get_units_in_focus(), SELTYPE_SAME, SELLOC_WORLD);
+  if (!gui_options.unit_selection_clears_orders || confirm_disruptive_selection()) {
+    request_unit_select(get_units_in_focus(), SELTYPE_SAME, SELLOC_WORLD);
+  }
 }
 
 /***************************************************************************
@@ -3363,7 +3442,23 @@ void mr_menu::back_to_menu()
   }
 }
 
-/***************************************************************************
+/**********************************************************************//**
+  Prompt to confirm disruptive selection
+**************************************************************************/
+bool mr_menu::confirm_disruptive_selection()
+{
+  hud_message_box *ask = new hud_message_box(gui()->central_wdg);
+
+  ask->setIcon(QMessageBox::Warning);
+  ask->setStandardButtons(QMessageBox::Cancel | QMessageBox::Ok);
+  ask->setDefaultButton(QMessageBox::Cancel);
+  ask->setAttribute(Qt::WA_DeleteOnClose);
+  return (ask->set_text_title(_("Selection will cancel current assignments!"),
+                               _("Confirm Disruptive Selection"), true)
+          == QMessageBox::Ok);
+}
+
+/**************************************************************************
   Airlift unit type to city acity from each city
 ***************************************************************************/
 void multiairlift(struct city *acity, Unit_type_id ut)

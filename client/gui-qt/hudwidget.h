@@ -1,4 +1,4 @@
-/**********************************************************************
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ class hud_message_box: public QMessageBox
 public:
   hud_message_box(QWidget *parent);
   ~hud_message_box();
-  void set_text_title(QString s1, QString s2);
+  int set_text_title(QString s1, QString s2, bool do_exec = false);
 
 protected:
   void paintEvent(QPaintEvent *event);
@@ -355,6 +355,8 @@ protected:
   void showEvent(QShowEvent *event);
 private:
   void update_size();
+  void te_inner();
+
   scale_widget *sw;
   move_widget *mw;
   QElapsedTimer m_timer;

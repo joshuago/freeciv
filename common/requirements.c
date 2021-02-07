@@ -2437,96 +2437,99 @@ static enum fc_tristate is_citytile_in_range(const struct tile *target_tile,
                                              enum req_range range,
                                              enum citytile_type citytile)
 {
-  if (target_tile) {
-    if (citytile == CITYT_CENTER) {
-      switch (range) {
-      case REQ_RANGE_LOCAL:
-        return BOOL_TO_TRISTATE(is_city_in_tile(target_tile, target_city));
-      case REQ_RANGE_CADJACENT:
-        if (is_city_in_tile(target_tile, target_city)) {
-          return TRI_YES;
-        }
-        cardinal_adjc_iterate(target_tile, adjc_tile) {
-          if (is_city_in_tile(adjc_tile, target_city)) {
-            return TRI_YES;
-          }
-        } cardinal_adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_ADJACENT:
-        if (is_city_in_tile(target_tile, target_city)) {
-          return TRI_YES;
-        }
-        adjc_iterate(target_tile, adjc_tile) {
-          if (is_city_in_tile(adjc_tile, target_city)) {
-            return TRI_YES;
-          }
-        } adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_CITY:
-      case REQ_RANGE_TRADEROUTE:
-      case REQ_RANGE_CONTINENT:
-      case REQ_RANGE_PLAYER:
-      case REQ_RANGE_TEAM:
-      case REQ_RANGE_ALLIANCE:
-      case REQ_RANGE_WORLD:
-      case REQ_RANGE_COUNT:
-	break;
-      }
-
-      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
-
-      return TRI_MAYBE;
-    } else if (citytile == CITYT_CLAIMED) {
-      switch (range) {
-      case REQ_RANGE_LOCAL:
-        return BOOL_TO_TRISTATE(target_tile->owner != NULL);
-      case REQ_RANGE_CADJACENT:
-        if (target_tile->owner != NULL) {
-          return TRI_YES;
-        }
-        cardinal_adjc_iterate(target_tile, adjc_tile) {
-          if (adjc_tile->owner != NULL) {
-            return TRI_YES;
-          }
-        } cardinal_adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_ADJACENT:
-        if (target_tile->owner != NULL) {
-          return TRI_YES;
-        }
-        adjc_iterate(target_tile, adjc_tile) {
-          if (adjc_tile->owner != NULL) {
-            return TRI_YES;
-          }
-        } adjc_iterate_end;
-
-        return TRI_NO;
-      case REQ_RANGE_CITY:
-      case REQ_RANGE_TRADEROUTE:
-      case REQ_RANGE_CONTINENT:
-      case REQ_RANGE_PLAYER:
-      case REQ_RANGE_TEAM:
-      case REQ_RANGE_ALLIANCE:
-      case REQ_RANGE_WORLD:
-      case REQ_RANGE_COUNT:
-        break;
-      }
-
-      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
-
-      return TRI_MAYBE;
-    } else {
-      /* Not implemented */
-      log_error("is_req_active(): citytile %d not supported.",
-		citytile);
-      return TRI_MAYBE;
-    }
-  } else {
+  fc_assert_ret_val(req_range_is_valid(range), TRI_MAYBE);
+  if (target_tile == NULL) {
     return TRI_MAYBE;
   }
+
+  switch (citytile) {
+  case CITYT_CENTER:
+    switch (range) {
+    case REQ_RANGE_LOCAL:
+      return BOOL_TO_TRISTATE(is_city_in_tile(target_tile, target_city));
+    case REQ_RANGE_CADJACENT:
+      if (is_city_in_tile(target_tile, target_city)) {
+        return TRI_YES;
+      }
+      cardinal_adjc_iterate(target_tile, adjc_tile) {
+        if (is_city_in_tile(adjc_tile, target_city)) {
+          return TRI_YES;
+        }
+      } cardinal_adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_ADJACENT:
+      if (is_city_in_tile(target_tile, target_city)) {
+        return TRI_YES;
+      }
+      adjc_iterate(target_tile, adjc_tile) {
+        if (is_city_in_tile(adjc_tile, target_city)) {
+          return TRI_YES;
+        }
+      } adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_CITY:
+    case REQ_RANGE_TRADEROUTE:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_COUNT:
+      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
+      break;
+    }
+
+    return TRI_MAYBE;
+  case CITYT_CLAIMED:
+    switch (range) {
+    case REQ_RANGE_LOCAL:
+      return BOOL_TO_TRISTATE(target_tile->owner != NULL);
+    case REQ_RANGE_CADJACENT:
+      if (target_tile->owner != NULL) {
+        return TRI_YES;
+      }
+      cardinal_adjc_iterate(target_tile, adjc_tile) {
+        if (adjc_tile->owner != NULL) {
+          return TRI_YES;
+        }
+      } cardinal_adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_ADJACENT:
+      if (target_tile->owner != NULL) {
+        return TRI_YES;
+      }
+      adjc_iterate(target_tile, adjc_tile) {
+        if (adjc_tile->owner != NULL) {
+          return TRI_YES;
+        }
+      } adjc_iterate_end;
+
+      return TRI_NO;
+    case REQ_RANGE_CITY:
+    case REQ_RANGE_TRADEROUTE:
+    case REQ_RANGE_CONTINENT:
+    case REQ_RANGE_PLAYER:
+    case REQ_RANGE_TEAM:
+    case REQ_RANGE_ALLIANCE:
+    case REQ_RANGE_WORLD:
+    case REQ_RANGE_COUNT:
+      fc_assert_msg(FALSE, "Invalid range %d for citytile.", range);
+      break;
+    }
+
+    return TRI_MAYBE;
+  case CITYT_LAST:
+    /* Handled below */
+    break;
+  }
+
+  /* Not implemented */
+  log_error("is_req_active(): citytile %d not supported.",
+            citytile);
+  return TRI_MAYBE;
 }
 
 /****************************************************************************
@@ -2837,7 +2840,7 @@ bool is_req_active(const struct player *target_player,
                                  req->source.value.extraflag);
     break;
   case VUT_MINYEAR:
-    eval = BOOL_TO_TRISTATE(game.info.year >= req->source.value.minyear);
+    eval = BOOL_TO_TRISTATE(game.info.year32 >= req->source.value.minyear);
     break;
   case VUT_TOPO:
     eval = BOOL_TO_TRISTATE(current_topo_has_flag(req->source.value.topo_property));
@@ -2976,7 +2979,7 @@ bool is_req_unchanging(const struct requirement *req)
     return TRUE;
   case VUT_MINYEAR:
     /* Once year is reached, it does not change again */
-    return req->source.value.minyear > game.info.year;
+    return req->source.value.minyear > game.info.year32;
   case VUT_COUNT:
     break;
   }

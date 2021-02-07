@@ -268,14 +268,14 @@ static void add_target_to_worklist(struct widget *pTarget)
 
     setup_vertical_widgets_position(1,
       pEditor->pEndWidgetList->area.x + adj_size(2),
-      get_widget_pointer_form_main_list(ID_WINDOW)->area.y + adj_size(152) +
+      get_widget_pointer_from_main_list(ID_WINDOW)->area.y + adj_size(152) +
         pEditor->pWork->pScroll->pUp_Left_Button->size.h + 1,
       adj_size(126), 0, pEditor->pWork->pBeginWidgetList,
       pEditor->pWork->pEndWidgetList);
 
     setup_vertical_scrollbar_area(pEditor->pWork->pScroll,
         pEditor->pEndWidgetList->area.x + adj_size(2),
-        get_widget_pointer_form_main_list(ID_WINDOW)->area.y + adj_size(152),
+        get_widget_pointer_from_main_list(ID_WINDOW)->area.y + adj_size(152),
         adj_size(225), FALSE);
 
     show_scrollbar(pEditor->pWork->pScroll);
@@ -497,13 +497,13 @@ static void remove_item_from_worklist(struct widget *pItem)
 
     setup_vertical_widgets_position(1,
       pEditor->pEndWidgetList->area.x + adj_size(2),
-      get_widget_pointer_form_main_list(ID_WINDOW)->area.y + adj_size(152),
+      get_widget_pointer_from_main_list(ID_WINDOW)->area.y + adj_size(152),
 	adj_size(126), 0, pEditor->pWork->pBeginWidgetList,
       pEditor->pWork->pEndWidgetList);
 #if 0
     setup_vertical_scrollbar_area(pEditor->pWork->pScroll,
 	pEditor->pEndWidgetList->area.x + adj_size(2),
-    	get_widget_pointer_form_main_list(ID_WINDOW)->area.y + adj_size(152),
+        get_widget_pointer_from_main_list(ID_WINDOW)->area.y + adj_size(152),
     	adj_size(225), FALSE);*/
 #endif /* 0 */
     hide_scrollbar(pEditor->pWork->pScroll);
@@ -840,10 +840,10 @@ static void set_global_worklist(struct widget *pWidget)
   left mouse button -> add global worklist to current city list
   right mouse button -> clear city worklist and copy here global worklist.
 
-  There are problems with impv./wonder tagets becouse those can't be doubled
+  There are problems with impv./wonder targets because those can't be doubled
   on worklist and adding/seting can give you situation that global worklist
   have imprv./wonder entry that exist on city worklist or in building state.
-  I don't make such check here and allow this "functionality" becouse doubled
+  I don't make such check here and allow this "functionality" because doubled
   impov./wonder entry are removed from city worklist during "commit" phase.
 **************************************************************************/
 static int global_worklist_callback(struct widget *pWidget)
@@ -913,12 +913,13 @@ static SDL_Surface *get_progress_icon(int stock, int cost, int *progress)
     *progress = 100;
   }
 
-  pIcon = create_bcgnd_surf(current_theme->Edit, 0, adj_size(120), adj_size(30));
+  pIcon = create_bcgnd_surf(current_theme->Edit, FC_WS_NORMAL, adj_size(120),
+                            adj_size(30));
 
   if (width) {
     SDL_Rect dst = {2,1,0,0};
-    SDL_Surface *pBuf = create_bcgnd_surf(current_theme->Button, 3, width,
-                                          adj_size(28));
+    SDL_Surface *pBuf = create_bcgnd_surf(current_theme->Button, FC_WS_DISABLED,
+                                          width, adj_size(28));
 
     alphablit(pBuf, NULL, pIcon, &dst, 255);
     FREESURFACE(pBuf);

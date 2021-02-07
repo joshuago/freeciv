@@ -765,7 +765,7 @@ void notify_dialog::calc_size(int &x, int &y)
   str_list << qcaption << qheadline;
 
   for (i = 0; i < str_list.count(); i++) {
-    x = qMax(x, fm.width(str_list.at(i)));
+    x = qMax(x, fm.horizontalAdvance(str_list.at(i)));
     y = y + 3 + fm.height();
   }
   x = x + 15;
@@ -2607,6 +2607,7 @@ void popdown_all_game_dialogs(void)
   int i;
   QList <choice_dialog *> cd_list;
   QList <notify_dialog *> nd_list;
+  goto_dialog *gtd;
 
   QApplication::alert(gui()->central_wdg);
   cd_list = gui()->game_tab_widget->findChildren <choice_dialog *>();
@@ -2627,6 +2628,12 @@ void popdown_all_game_dialogs(void)
   popdown_city_report();
   popdown_endgame_report();
   gui()->popdown_unit_sel();
+
+  gtd = gui()->gtd;
+
+  if (gtd != nullptr) {
+    gtd->close_dlg();
+  }
 }
 
 /**************************************************************************
@@ -3150,7 +3157,8 @@ void units_select::paint(QPainter *painter, QPaintEvent *event)
       info_font.setPointSize(i);
     }
     QFontMetrics qfm(info_font);
-    if (10 + qfm.width(str2) < width()) {
+
+    if (10 + qfm.horizontalAdvance(str2) < width()) {
       break;
     }
   }

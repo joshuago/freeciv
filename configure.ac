@@ -196,6 +196,10 @@ case "$host_os" in
     dnl Without WINSOCK2, use: LIBS="$LIBS -lwsock32"
     LIBS="${LIBS} -lws2_32"
     ;;
+
+  *haiku*)
+    LIBS="$LIBS -lnetwork"
+    ;;
 esac
 
 dnl Networking headers
@@ -307,6 +311,16 @@ AC_ARG_WITH([appdatadir],
   AS_HELP_STRING([--with-appdatadir], [install appdata files to given dir]),
 [ APPDATADIR=${withval} ], [ APPDATADIR="\$(prefix)/share/appdata" ])
 AC_SUBST([APPDATADIR])
+
+AC_ARG_ENABLE([patient-connect],
+  AS_HELP_STRING([--enable-patient-connect=yes/no],
+                 [enable client to be very patient in connecting spawned server]),
+  [case "${enableval}" in
+    yes) AC_DEFINE([FREECIV_PATIENT_CONNECT], [1],
+                   [Client is very patient when connecting to spawned server]) ;;
+    no) ;;
+    *) AC_MSG_ERROR([bad value ${enableval} for --enable-patient-connect]) ;;
+  esac])
 
 dnl set default values
 mapimg_all=auto
@@ -714,8 +728,9 @@ case "$host_os" in
 
   *haiku*)
     dnl Haiku specific settings
+    HAIKU=yes
+    AC_DEFINE([HAIKU], [1], [Built for Haiku OS])
     AC_DEFINE([ALWAYS_ROOT], [1], [Can execute program as root - Haiku])
-    LIBS="$LIBS -lnetwork"
     ;;
 
   *amigaos*)
@@ -864,6 +879,12 @@ fi
 
 if test "x$thread_cond" != "xtrue" ; then
   feature_thr_cond=missing
+fi
+
+if test "x$MINGW" = "xyes" ; then
+  MWINDOWS_FLAG="-mwindows"
+else
+  MWINDOWS_FLAG=""
 fi
 
 dnl Check and choose clients
@@ -1019,7 +1040,7 @@ if test "x$req_fcmp_gtk3" = "xyes" ||
   if test "x$MINGW" = "xyes"; then
     dnl Required to compile gtk3 on Windows platform
     mp_gtk3_cflags="$mp_gtk3_cflags -mms-bitfields"
-    mp_gtk3_ldflags="$mp_gtk3_ldflags -mwindows"
+    mp_gtk3_ldflags="$mp_gtk3_ldflags $MWINDOWS_FLAG"
   fi
 
   if test "x$modinst" = "xauto" ; then
@@ -1045,7 +1066,7 @@ if test "x$req_fcmp_gtk2" = "xyes" ||
   if test "x$MINGW" = "xyes"; then
      dnl Required to compile gtk2 on Windows platform
      mp_gtk2_cflags="$mp_gtk2_cflags -mms-bitfields"
-     mp_gtk2_ldflags="$mp_gtk2_ldflags -mwindows"
+     mp_gtk2_ldflags="$mp_gtk2_ldflags $MWINDOWS_FLAG"
   fi
 
   if test "x$modinst" = "xauto" ; then
@@ -1070,7 +1091,7 @@ if test "x$req_fcmp_qt" = "xyes" ||
 
        mp_qt_cppflags=$FC_QT5_CPPFLAGS
        mp_qt_cxxflags=$FC_QT5_CXXFLAGS
-       mp_qt_libs=$FC_QT5_LIBS
+       mp_qt_libs="$FC_QT5_LIBS $MWINDOWS_FLAG"
 
        if test "x$modinst" = "xauto" ; then
          modinst=found
@@ -1132,6 +1153,7 @@ if test "x$ruledit" = "xyes" || test "x$ruledit" = "xtest" ; then
       ruledit_cxxflags=$FC_QT5_CXXFLAGS
       ruledit_libs=$FC_QT5_LIBS
       ruledit=yes
+      ruledit_libs="$ruledit_libs $MWINDOWS_FLAG"
     elif test "x$ruledit" = "xyes" ; then
       AC_MSG_ERROR([Qt5 not found for building freeciv-ruledit])
     fi
@@ -1355,7 +1377,7 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <signal.h>]], [[signal (SIGPIPE, S
 dnl export where the datadir is going to be installed
 FC_EXPAND_DIR(FREECIV_DATADIR, "$datadir/freeciv")
 
-if test x"$MINGW" = xyes; then
+if test x"$MINGW" = xyes ; then
   DEFAULT_SAVE_PATH=".;~\\\\\\\\.freeciv\\\\\\\\saves"
   if test x$crosser = xyes ; then
     FC_CONF_PATH="../etc/freeciv"
@@ -1366,6 +1388,11 @@ if test x"$MINGW" = xyes; then
     DEFAULT_DATA_PATH=".;data;~\\\\\\\\.freeciv\\\\\\\\$DATASUBDIR;$datadir\\\\\\\\freeciv"
     DEFAULT_SCENARIO_PATH=".;data\\\\\\\\scenarios;~\\\\\\\\.freeciv\\\\\\\\$DATASUBDIR\\\\\\\\scenarios;~\\\\\\\\.freeciv\\\\\\\\scenarios;$datadir\\\\\\\\freeciv\\\\\\\\scenarios"
   fi
+elif test x"$HAIKU" = xyes ; then
+  FC_CONF_PATH="$sysconfdir/freeciv"
+  DEFAULT_DATA_PATH=".:data:~/config/settings/freeciv/$DATASUBDIR:$datadir/freeciv"
+  DEFAULT_SAVE_PATH=".:~/config/settings/freeciv/saves"
+  DEFAULT_SCENARIO_PATH=".:data/scenarios:~/config/settings/freeciv/$DATASUBDIR/scenarios:~/config/settings/freeciv/scenarios:$datadir/freeciv/scenarios"
 else
   FC_CONF_PATH="$sysconfdir/freeciv"
   DEFAULT_DATA_PATH=".:data:~/.freeciv/$DATASUBDIR:$datadir/freeciv"

@@ -1,4 +1,4 @@
-/**********************************************************************
+/***********************************************************************
  Freeciv - Copyright (C) 2006 - The Freeciv Project
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ struct ScrollBar {
   struct widget *pDown_Right_Button;  
   Uint8 active;		/* used by scroll: numbers of displayed rows */
   Uint8 step;		/* used by scroll: numbers of displayed columns */
-  /* total dispalyed widget = active * step */
+  /* total displayed widget = active * step */
   Uint16 count;		/* total size of scroll list */
   Sint16 min;		/* used by scroll: min pixel position */
   Sint16 max;		/* used by scroll: max pixel position */
@@ -68,7 +68,7 @@ do {								\
 
 /* VERTICAL */
 struct widget *create_vertical(SDL_Surface *pVert_theme, struct gui_layer *pDest,
-  				Uint16 high, Uint32 flags);
+                               Uint16 height, Uint32 flags);
 int draw_vert(struct widget *pVert, Sint16 x, Sint16 y);
 
 Uint32 create_vertical_scrollbar(struct ADVANCED_DLG *pDlg,

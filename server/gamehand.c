@@ -850,7 +850,8 @@ void send_year_to_clients(void)
     pplayer->nturns_idle++;
   } players_iterate_end;
 
-  apacket.year = game.info.year;
+  apacket.year32 = game.info.year32;
+  apacket.year16 = game.info.year32;
   apacket.fragments = game.info.fragment_count;
   apacket.turn = game.info.turn;
   lsend_packet_new_year(game.est_connections, &apacket);
@@ -1033,7 +1034,12 @@ static const char *get_challenge_fullname(struct connection *pc)
 {
   static char fullname[MAX_LEN_PATH];
 
+#ifdef HAIKU
+  interpret_tilde(fullname, sizeof(fullname), "~" DIR_SEPARATOR "config" DIR_SEPARATOR "settings"
+                     DIR_SEPARATOR "freeciv" DIR_SEPARATOR);
+#else  /* HAIKU */
   interpret_tilde(fullname, sizeof(fullname), "~" DIR_SEPARATOR ".freeciv" DIR_SEPARATOR);
+#endif  /* HAIKU */
   sz_strlcat(fullname, get_challenge_filename(pc));
 
   return fullname;

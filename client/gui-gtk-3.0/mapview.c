@@ -155,39 +155,48 @@ void update_info_label(void)
                      get_info_label_text(!gui_options.gui_gtk3_small_display_layout));
 
   set_indicator_icons(client_research_sprite(),
-		      client_warming_sprite(),
-		      client_cooling_sprite(),
-		      client_government_sprite());
+                      client_warming_sprite(),
+                      client_cooling_sprite(),
+                      client_government_sprite());
 
   if (NULL != client.conn.playing) {
     int d = 0;
 
     for (; d < client.conn.playing->economic.luxury /10; d++) {
-      struct sprite *sprite = get_tax_sprite(tileset, O_LUXURY);
+      struct sprite *spr = get_tax_sprite(tileset, O_LUXURY);
+      GdkPixbuf *pb;
 
-      gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(econ_label[d]), sprite);
+      pb = sprite_get_pixbuf(spr);
+      gtk_image_set_from_pixbuf(GTK_IMAGE(econ_label[d]), pb);
+      g_object_unref(pb);
     }
- 
+
     for (; d < (client.conn.playing->economic.science
 		+ client.conn.playing->economic.luxury) / 10; d++) {
-      struct sprite *sprite = get_tax_sprite(tileset, O_SCIENCE);
+      struct sprite *spr = get_tax_sprite(tileset, O_SCIENCE);
+      GdkPixbuf *pb;
 
-      gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(econ_label[d]), sprite);
+      pb = sprite_get_pixbuf(spr);
+      gtk_image_set_from_pixbuf(GTK_IMAGE(econ_label[d]), pb);
+      g_object_unref(pb);
     }
- 
-    for (; d < 10; d++) {
-      struct sprite *sprite = get_tax_sprite(tileset, O_GOLD);
 
-      gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(econ_label[d]), sprite);
+    for (; d < 10; d++) {
+      struct sprite *spr = get_tax_sprite(tileset, O_GOLD);
+      GdkPixbuf *pb;
+
+      pb = sprite_get_pixbuf(spr);
+      gtk_image_set_from_pixbuf(GTK_IMAGE(econ_label[d]), pb);
+      g_object_unref(pb);
     }
   }
- 
+
   update_timeout_label();
 
   /* update tooltips. */
   gtk_widget_set_tooltip_text(econ_ebox,
-		       _("Shows your current luxury/science/tax rates; "
-			 "click to toggle them."));
+                              _("Shows your current luxury/science/tax rates; "
+                                "click to toggle them."));
 
   gtk_widget_set_tooltip_text(bulb_ebox, get_bulb_tooltip());
   gtk_widget_set_tooltip_text(sun_ebox, get_global_warming_tooltip());
@@ -256,7 +265,6 @@ void update_unit_info_label(struct unit_list *punits)
   update_unit_pix_label(punits);
 }
 
-
 /**************************************************************************
   Get sprite for treaty acceptance or rejection.
 **************************************************************************/
@@ -271,12 +279,22 @@ GdkPixbuf *get_thumb_pixbuf(int onoff)
   indicator.
 ****************************************************************************/
 void set_indicator_icons(struct sprite *bulb, struct sprite *sol,
-			 struct sprite *flake, struct sprite *gov)
+                         struct sprite *flake, struct sprite *gov)
 {
-  gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(bulb_label), bulb);
-  gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(sun_label), sol);
-  gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(flake_label), flake);
-  gtk_pixcomm_set_from_sprite(GTK_PIXCOMM(government_label), gov);
+  GdkPixbuf *pb;
+
+  pb = sprite_get_pixbuf(bulb);
+  gtk_image_set_from_pixbuf(GTK_IMAGE(bulb_label), pb);
+  g_object_unref(pb);
+  pb = sprite_get_pixbuf(sol);
+  gtk_image_set_from_pixbuf(GTK_IMAGE(sun_label), pb);
+  g_object_unref(pb);
+  pb = sprite_get_pixbuf(flake);
+  gtk_image_set_from_pixbuf(GTK_IMAGE(flake_label), pb);
+  g_object_unref(pb);
+  pb = sprite_get_pixbuf(gov);
+  gtk_image_set_from_pixbuf(GTK_IMAGE(government_label), pb);
+  g_object_unref(pb);
 }
 
 /****************************************************************************
@@ -466,19 +484,19 @@ void update_city_descriptions(void)
 }
 
 /**************************************************************************
-  Fill pixcomm with unit gfx
+  Fill image with unit gfx
 **************************************************************************/
-void put_unit_gpixmap(struct unit *punit, GtkPixcomm *p)
+void put_unit_image(struct unit *punit, GtkImage *p)
 {
-  struct canvas canvas_store = FC_STATIC_CANVAS_INIT;
+  GdkPixbuf *pixbuf;
+  struct sprite *spr;
 
-  canvas_store.surface = gtk_pixcomm_get_surface(p);
+  spr = get_unittype_sprite(tileset, unit_type_get(punit), punit->facing, FALSE);
+  pixbuf = sprite_get_pixbuf(spr);
 
-  gtk_pixcomm_clear(p);
-
-  put_unit(punit, &canvas_store, 1.0, 0, 0);
+  gtk_image_set_from_pixbuf(p, pixbuf);
+  g_object_unref(pixbuf);
 }
-
 
 /**************************************************************************
   FIXME:
@@ -486,15 +504,26 @@ void put_unit_gpixmap(struct unit *punit, GtkPixcomm *p)
   unit, the proper way to do this is probably something like what Civ II does.
   (One food/shield/mask drawn N times, possibly one top of itself. -- SKi 
 **************************************************************************/
-void put_unit_gpixmap_city_overlays(struct unit *punit, GtkPixcomm *p,
-                                    int *upkeep_cost, int happy_cost)
+void put_unit_image_city_overlays(struct unit *punit, GtkImage *p,
+                                  int height,
+                                  int *upkeep_cost, int happy_cost)
 {
   struct canvas store = FC_STATIC_CANVAS_INIT;
- 
-  store.surface = gtk_pixcomm_get_surface(p);
+  GdkPixbuf *pb;
+  int width = tileset_full_tile_width(tileset);
+
+  store.surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
+                                             width, height);
+
+  put_unit(punit, &store, 1.0, 0, 0);
 
   put_unit_city_overlays(punit, &store, 0, tileset_unit_layout_offset_y(tileset),
                          upkeep_cost, happy_cost);
+
+  pb = surface_get_pixbuf(store.surface, width, height);
+  gtk_image_set_from_pixbuf(p, pb);
+  g_object_unref(pb);
+  cairo_surface_destroy(store.surface);
 }
 
 /**************************************************************************
