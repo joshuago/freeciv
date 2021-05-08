@@ -4479,7 +4479,7 @@ static bool load_ruleset_nations(struct section_file *file)
           nation_list_append(pconflict->server.parent_nations, pnation);
         } else {
           /* For nation authors, this would probably be considered an error.
-           * But it can happen normally. The civ1 compatability ruleset only
+           * But it can happen normally. The civ1 compatibility ruleset only
            * uses the nations that were in civ1, so not all of the links will
            * exist. */
           log_verbose("Nation %s: civil war nation \"%s\" is unknown.",
@@ -5740,7 +5740,7 @@ static bool load_ruleset_game(struct section_file *file, bool act)
       = secfile_lookup_bool_default(file, RS_DEFAULT_CALENDAR_SKIP_0,
                                     "calendar.skip_year_0");
     game.server.start_year
-      = secfile_lookup_int_default(file, GAME_START_YEAR,
+      = secfile_lookup_int_default(file, GAME_DEFAULT_START_YEAR,
                                    "calendar.start_year");
     game.info.calendar_fragments
       = secfile_lookup_int_default(file, 0, "calendar.fragments");
@@ -6975,6 +6975,8 @@ bool load_rulesets(const char *restore, bool act, bool buffer_script)
 
   /* Cannot load even default ruleset, we're in completely unusable state */
   exit(EXIT_FAILURE);
+
+  RETURN_VALUE_AFTER_EXIT(FALSE);
 }
 
 /**************************************************************************

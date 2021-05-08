@@ -53,6 +53,7 @@
 #include "mem.h"
 #include "netintf.h"
 #include "rand.h"
+#include "randseed.h"
 #include "registry.h"
 #include "support.h"
 #include "timing.h"
@@ -190,19 +191,19 @@ static struct timer *eot_timer = NULL;
 static struct timer *between_turns = NULL;
 
 /**************************************************************************
-  Initialize the game seed.  This may safely be called multiple times.
+  Initialize the game seed. This may safely be called multiple times.
 **************************************************************************/
 void init_game_seed(void)
 {
   if (game.server.seed_setting == 0) {
     /* We strip the high bit for now because neither game file nor
        server options can handle unsigned ints yet. - Cedric */
-    game.server.seed = time(NULL) & (MAX_UINT32 >> 1);
+    game.server.seed = generate_game_seed() & (MAX_UINT32 >> 1);
 #ifdef FREECIV_TESTMATIC
      /* Log command to reproduce the gameseed */
-    log_testmatic("set gameseed %d", game.server.seed);
+    log_testmatic("set gameseed %u", game.server.seed);
 #else  /* FREECIV_TESTMATIC */
-    log_debug("Setting game.seed:%d", game.server.seed);
+    log_debug("Setting game.seed:%u", game.server.seed);
 #endif /* FREECIV_TESTMATIC */
   } else {
     game.server.seed = game.server.seed_setting;
@@ -1150,7 +1151,8 @@ static void begin_phase(bool is_new_phase)
 
   dlsend_packet_start_phase(game.est_connections, game.info.phase);
 
-  if (!is_new_phase) {
+  if (!is_new_phase || game.info.turn == FIRST_TURN) {
+    /* Starting from a savegame or from the very beginning */
     conn_list_iterate(game.est_connections, pconn) {
       send_diplomatic_meetings(pconn);
     } conn_list_iterate_end;

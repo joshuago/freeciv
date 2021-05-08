@@ -550,7 +550,7 @@ static int get_pollution(const struct player *pplayer)
 ****************************************************************************/
 static int get_mil_service(const struct player *pplayer)
 {
-  return (pplayer->score.units * 5000) / (10 + civ_population(pplayer));
+  return (pplayer->score.units * 5000) / (10 + pplayer->score.population);
 }
 
 /****************************************************************************
@@ -1388,7 +1388,7 @@ void log_civ_score_now(void)
   }
 
   if (!score_log->fp) {
-    if (game.info.year32 == GAME_START_YEAR) {
+    if (game.info.year32 == game.server.start_year) {
       oper = SL_CREATE;
     } else {
       score_log->fp = fc_fopen(game.server.scorefile, "r");

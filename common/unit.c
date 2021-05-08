@@ -2046,7 +2046,7 @@ enum unit_upgrade_result unit_upgrade_test(const struct unit *punit,
 
   if (punit->transporter != NULL) {
     if (!can_unit_type_transport(unit_type_get(punit->transporter),
-                                 unit_class_get(punit))) {
+                                 utype_class(to_unittype))) {
       return UU_UNSUITABLE_TRANSPORT;
     }
   } else if (!can_exist_at_tile(to_unittype, unit_tile(punit))) {
@@ -2072,7 +2072,12 @@ bool unit_can_convert(const struct unit *punit)
     return FALSE;
   }
 
-  if (!can_exist_at_tile(tgt, unit_tile(punit))) {
+  if (punit->transporter != NULL) {
+    if (!can_unit_type_transport(unit_type_get(punit->transporter),
+                                 utype_class(tgt))) {
+      return FALSE;
+    }
+  } else if (!can_exist_at_tile(tgt, unit_tile(punit))) {
     return FALSE;
   }
 

@@ -50,9 +50,9 @@ enum widget_type {			/* allow 64 widgets type */
   WT_VSCROLLBAR = 24,		/* bugy */
   WT_HSCROLLBAR = 28,		/* bugy */
   WT_WINDOW	= 32,
-  WT_T_LABEL	= 36,		/* text label with theme backgroud */
+  WT_T_LABEL	= 36,		/* text label with theme background */
   WT_I_LABEL	= 40,		/* text label with icon */
-  WT_TI_LABEL	= 44,		/* text label with icon and theme backgroud.
+  WT_TI_LABEL	= 44,		/* text label with icon and theme background.
 				   NOTE: Not DEFINED- don't use
 				   ( can't be transp. ) */
   WT_CHECKBOX	= 48,		/* checkbox. */
@@ -205,8 +205,9 @@ void del_main_list(void);
 struct widget *find_next_widget_at_pos(struct widget *pStartWidget, int x, int y);
 struct widget *find_next_widget_for_key(struct widget *pStartWidget, SDL_keysym key);
 
-struct widget *get_widget_pointer_from_id(const struct widget *pGUI_List, Uint16 ID,
-                                       enum scan_direction direction);
+struct widget *get_widget_pointer_from_id(const struct widget *gui_list,
+                                          Uint16 id,
+                                          enum scan_direction direction);
 
 struct widget *get_widget_pointer_from_main_list(Uint16 ID);
 

@@ -1,4 +1,4 @@
-/********************************************************************** 
+/***********************************************************************
  Freeciv - Copyright (C) 1996 - A Kjeldberg, L Gregersen, P Unold
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ static struct widget *pBeginMainWidgetList;
 static SDL_Surface *pInfo_Label = NULL;
 
 /**************************************************************************
-  Correct backgroud size ( set min size ). Used in create widget
+  Correct background size ( set min size ). Used in create widget
   functions.
 **************************************************************************/
 void correct_size_bcgnd_surf(SDL_Surface *ptheme,
@@ -543,21 +543,29 @@ void redraw_widget_info_label(SDL_Rect *rect)
 }
 
 /**************************************************************************
-  Find ID in Widget's List ('pGUI_List') and return pointer to this
+  Find ID in widgets list ('gui_list') and return pointer to this
   Widgets.
 **************************************************************************/
-struct widget *get_widget_pointer_from_id(const struct widget *pGUI_List,
-				       Uint16 ID, enum scan_direction direction)
+struct widget *get_widget_pointer_from_id(const struct widget *gui_list,
+                                          Uint16 id,
+                                          enum scan_direction direction)
 {
-  while (pGUI_List) {
-    if (pGUI_List->ID == ID) {
-      return (struct widget *) pGUI_List;
+  if (direction == SCAN_FORWARD) {
+    while (gui_list) {
+      if (gui_list->ID == id) {
+        return (struct widget *) gui_list;
+      }
+      gui_list = gui_list->next;
     }
-    if (direction == SCAN_FORWARD)
-    pGUI_List = pGUI_List->next;
-    else
-      pGUI_List = pGUI_List->prev;  
+  } else {
+    while (gui_list) {
+      if (gui_list->ID == id) {
+        return (struct widget *) gui_list;
+      }
+      gui_list = gui_list->prev;
+    }
   }
+
   return NULL;
 }
 

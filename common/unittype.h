@@ -454,7 +454,7 @@ struct veteran_system {
 struct unit_type {
   Unit_type_id item_number;
   struct name_translation name;
-  bool disabled;                        /* Does not really exist - hole in improvments array */
+  bool disabled;                        /* Does not really exist - hole in units array */
   char graphic_str[MAX_LEN_NAME];
   char graphic_alt[MAX_LEN_NAME];
   char sound_move[MAX_LEN_NAME];
@@ -692,6 +692,8 @@ int unit_upgrade_price(const struct player *pplayer,
 		       const struct unit_type *from,
 		       const struct unit_type *to);
 
+bool utype_player_already_has_this(const struct player *pplayer,
+                                   const struct unit_type *putype);
 bool utype_player_already_has_this_unique(const struct player *pplayer,
                                           const struct unit_type *putype);
 

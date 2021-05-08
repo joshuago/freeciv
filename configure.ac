@@ -2,7 +2,7 @@ dnl configure.ac for freeciv
 dnl Process this file with autoconf to produce a configure script.
 
 AC_INIT([Freeciv], m4_esyscmd([./fc_version | tr -d '\n']),
-        [https://www.freelists.org/list/freeciv-dev],
+        [https://osdn.net/projects/freeciv/ticket/],
         [freeciv])
 AC_PREREQ(2.61)
 
@@ -1248,9 +1248,7 @@ AC_CHECK_LIB(nls,main)
 
 dnl Checks for header files.
 AC_HEADER_SYS_WAIT
-AC_CHECK_HEADERS([fcntl.h sys/utsname.h \
-                  sys/file.h signal.h strings.h execinfo.h \
-                  libgen.h time.h])
+AC_CHECK_HEADERS([fcntl.h sys/utsname.h sys/file.h signal.h strings.h execinfo.h libgen.h time.h])
 AC_CHECK_HEADERS([sys/time.h], [AC_DEFINE([FREECIV_HAVE_SYS_TIME_H], [1], [sys/time.h available])])
 AC_CHECK_HEADERS([unistd.h], [AC_DEFINE([FREECIV_HAVE_UNISTD_H], [1], [unistd.h available])])
 AC_CHECK_HEADERS([locale.h], [AC_DEFINE([FREECIV_HAVE_LOCALE_H], [1], [locale.h available])])
@@ -1265,9 +1263,7 @@ AC_CHECK_HEADERS([pwd.h])
 dnl Avoid including the unix emulation layer if we build mingw executables
 dnl There would be type conflicts between winsock and bsd/unix includes
 if test "x$MINGW" != "xyes"; then
-  AC_CHECK_HEADERS([arpa/inet.h netdb.h sys/ioctl.h \
-                    sys/signal.h sys/termio.h \
-                    sys/uio.h termios.h])
+  AC_CHECK_HEADERS([arpa/inet.h netdb.h sys/ioctl.h sys/signal.h sys/termio.h sys/uio.h termios.h])
   AC_CHECK_HEADERS([sys/select.h], [AC_DEFINE([FREECIV_HAVE_SYS_SELECT_H], [1], [sys/select.h available])])
   AC_CHECK_HEADERS([netinet/in.h], [AC_DEFINE([FREECIV_HAVE_NETINET_IN_H], [1], [netinet/in.h available])])
 fi
@@ -1316,11 +1312,38 @@ FC_FUNC_VSNPRINTF
 AC_CHECK_FUNCS([vsnprintf])
 fi
 
-AC_CHECK_FUNCS([bind connect fileno flock ftime gethostbyname gethostname \
-		getpwuid inet_aton select snooze strcasecmp strcasestr \
-		strerror strlcat strlcpy strncasecmp strstr uname nanosleep \
-                usleep getline _strcoll stricoll _stricoll strcasecoll \
-                backtrace])
+AC_CHECK_FUNCS([bind connect fileno flock ftime gethostbyname gethostname])
+AC_CHECK_FUNCS([getpwuid inet_aton select snooze strcasecmp strcasestr])
+AC_CHECK_FUNCS([strerror strlcat strlcpy strncasecmp strstr uname nanosleep])
+AC_CHECK_FUNCS([usleep getline _strcoll stricoll _stricoll strcasecoll backtrace])
+
+dnl Possible random sources
+AC_CHECK_HEADERS([sys/random.h])
+AC_CHECK_HEADERS([bcrypt.h], [bcrypt_h_found=yes], [bcrypt_h_found=no])
+if test "x$bcrypt_h_found" = "xyes" ; then
+  dnl Cygwin would find the symbol in library despite not finding the header,
+  dnl leading to compile time error if we set HAVE_BCRYPTGENRANDOM
+  AC_CHECK_LIB([bcrypt], [BCryptGenRandom], [
+    AC_DEFINE([HAVE_BCRYPTGENRANDOM], [1], [BCryptGenRandom() available])
+    UTILITY_LIBS="${UTILITY_LIBS} -lbcrypt" ])
+fi
+AC_CHECK_FUNCS([getentropy clock_gettime])
+
+if test "x$MINGW" != "xyes" ; then
+  dnl /dev/urandom could be found within msys2 environment, but it would not
+  dnl be available in the final target environment when freeciv gets installed.
+  dnl Just don't check for it in Windows.
+  AC_CACHE_VAL([ac_cv_dev_urandom],
+    [if test "x$cross_compiling" != "xyes" ; then
+       AC_CHECK_FILES([/dev/urandom], [ac_cv_dev_urandom=yes], [ac_cv_dev_urandom=no])
+     else
+       dnl Pessimistic default when cross-compiling
+       ac_cv_dev_urandom=no
+     fi])
+  if test "x${ac_cv_dev_urandom}" = "xyes" ; then
+    AC_DEFINE([HAVE_USABLE_URANDOM], [1], [Build in /dev/urandom support])
+  fi
+fi
 
 dnl Possible "-Wmissing-declarations" and "-Werror" will prune out
 dnl cases where we should not use _mkdir() even if it's possible to link against it
@@ -1538,6 +1561,28 @@ AC_CONFIG_COMMANDS([fc_default-5],[[if test x`uname -s` = xBeOS ; then
 CFLAGS="$EXTRA_DEBUG_CFLAGS $CFLAGS"
 CXXFLAGS="$EXTRA_DEBUG_CXXFLAGS $CXXFLAGS"
 LDFLAGS="$EXTRA_DEBUG_LDFLAGS $LDFLAGS"
+
+dnl Check this when -Werror is already set, if we're going to set it
+FC_VALUE_AFTER_EXIT
+
+if test "x$gui_xaw" = "xyes" ; then
+  AC_CACHE_CHECK([['const' for XawListChange()]], [ac_cv_const_for_xaw_list_change],
+    [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <X11/Xaw/List.h>
+]],
+      [char *test_strings[[2]];
+XawListChange(NULL, test_strings, 0, 0, False);])],
+      [ac_cv_const_for_xaw_list_change=no],
+      [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <X11/Xaw/List.h>
+]],
+        [const char *test_strings[[2]];
+XawListChange(NULL, test_strings, 0, 0, False);])],
+        [ac_cv_const_for_xaw_list_change=yes], [ac_cv_const_for_xaw_list_change=unknown])])])
+  if test "x${ac_cv_const_for_xaw_list_change}" = "xyes" ; then
+    AC_DEFINE([CONST_FOR_XAW_LIST_CHANGE], [const], [[Use const for XawListChange() parameter]])
+  else
+    AC_DEFINE([CONST_FOR_XAW_LIST_CHANGE], [], [[Do not use const for XawListChange() parameter]])
+  fi
+fi
 
 dnl Rebuild 'configure' whenever fc_version changes, if maintainer mode enabled.
 AC_SUBST([CONFIGURE_DEPENDENCIES], ["$CONFIGURE_DEPENDENCIES \$(top_srcdir)/fc_version"])
