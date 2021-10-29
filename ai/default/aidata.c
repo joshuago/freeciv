@@ -568,7 +568,7 @@ void dai_gov_value(struct ai_type *ait, struct player *pplayer,
                               nplayers);
 
         if (!present) {
-          /* Tech removes the effect */
+          /* Government removes the effect */
           *val -= v1;
         } else {
           *val += v1;
@@ -576,6 +576,9 @@ void dai_gov_value(struct ai_type *ait, struct player *pplayer,
       }
     } effect_list_iterate_end;
   } city_list_iterate_end;
+
+  bonus += adv_gov_action_immunity_want(gov);
+  bonus += adv_gov_player_bonus_want(pplayer);
 
   revolution_turns = get_player_bonus(pplayer, EFT_REVOLUTION_UNHAPPINESS);
   if (revolution_turns > 0) {

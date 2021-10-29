@@ -1835,11 +1835,11 @@ static void city_dialog_update_information(GtkWidget **info_ebox,
   fc_snprintf(buf[INFO_POLLUTION], sizeof(buf[INFO_POLLUTION]), "%4d",
               pcity->pollution);
   if (!game.info.illness_on) {
-    fc_snprintf(buf[INFO_ILLNESS], sizeof(buf[INFO_ILLNESS]), " -.-");
+    fc_snprintf(buf[INFO_ILLNESS], sizeof(buf[INFO_ILLNESS]), "  -.-");
   } else {
     illness = city_illness_calc(pcity, NULL, NULL, NULL, NULL);
     /* illness is in tenth of percent */
-    fc_snprintf(buf[INFO_ILLNESS], sizeof(buf[INFO_ILLNESS]), "%4.1f%%",
+    fc_snprintf(buf[INFO_ILLNESS], sizeof(buf[INFO_ILLNESS]), "%5.1f%%",
                 (float)illness / 10.0);
   }
 
@@ -2033,7 +2033,7 @@ static void city_dialog_update_building(struct city_dialog *pdialog)
 *****************************************************************/
 static void city_dialog_update_improvement_list(struct city_dialog *pdialog)
 {
-  int total, item, targets_used;
+  int item, targets_used;
   struct universal targets[MAX_NUM_PRODUCTION_TARGETS];
   struct item items[MAX_NUM_PRODUCTION_TARGETS];
   GtkTreeModel *model;
@@ -2053,7 +2053,6 @@ static void city_dialog_update_improvement_list(struct city_dialog *pdialog)
 
   gtk_list_store_clear(store);  
 
-  total = 0;
   for (item = 0; item < targets_used; item++) {
     GdkPixbuf *pix;
     GtkTreeIter it;
@@ -2083,8 +2082,6 @@ static void city_dialog_update_improvement_list(struct city_dialog *pdialog)
                              tooltip_small_wonder : tooltip_sellable),
                        -1);
     g_object_unref(G_OBJECT(pix));
-
-    total += upkeep;
   }
 }
 
@@ -2260,7 +2257,7 @@ static void city_dialog_update_present_units(struct city_dialog *pdialog)
       cmd = pnode->cmd;
       pix = pnode->pix;
 
-      put_unit_image(punit, GTK_IMAGE(pix));
+      put_unit_image(punit, GTK_IMAGE(pix), pnode->height);
 
       g_signal_handlers_disconnect_matched(cmd,
 	  G_SIGNAL_MATCH_FUNC,

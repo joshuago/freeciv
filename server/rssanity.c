@@ -15,6 +15,9 @@
 #include <fc_config.h>
 #endif
 
+/* utility */
+#include "deprecations.h"
+
 /* common */
 #include "achievements.h"
 #include "effects.h"
@@ -457,6 +460,14 @@ static bool rs_buildings(void)
 
       return FALSE;
     }
+
+    if (is_wonder(pimprove) && pimprove->upkeep != 0) {
+      /* Not treating this as a hard error for the sake of the rulesets
+       * already in the wild. */
+      log_deprecation("Ignoring nonzero upkeep value of %s as it's a wonder",
+                      improvement_rule_name(pimprove));
+      pimprove->upkeep = 0; /* Forced also in city_improvement_upkeep() */
+    }
   } improvement_iterate_end;
 
   return TRUE;
@@ -528,6 +539,7 @@ bool sanity_check_ruleset_data(void)
                    * immediately so all errors get printed, not just first
                    * one. */
   bool default_gov_failed = FALSE;
+  bool obsoleted_by_loop = FALSE;
 
   if (!sanity_check_metadata()) {
     ok = FALSE;
@@ -536,7 +548,7 @@ bool sanity_check_ruleset_data(void)
   if (game.info.tech_cost_style == TECH_COST_CIV1CIV2
       && game.info.free_tech_method == FTM_CHEAPEST) {
     ruleset_error(LOG_ERROR, "Cost based free tech method, but tech cost style "
-                  "1 so all techs cost the same.");
+                  "\"Civ I|II\" so all techs cost the same.");
     ok = FALSE;
   }
 
@@ -668,7 +680,7 @@ bool sanity_check_ruleset_data(void)
     int chain_length = 0;
     struct unit_type *upgraded = putype;
 
-    while (upgraded != NULL) {
+    while (upgraded != NULL && !obsoleted_by_loop) {
       upgraded = upgraded->obsoleted_by;
       chain_length++;
       if (chain_length > num_utypes) {
@@ -676,6 +688,7 @@ bool sanity_check_ruleset_data(void)
                       "There seems to be obsoleted_by loop in update "
                       "chain that starts from %s", utype_rule_name(putype));
         ok = FALSE;
+        obsoleted_by_loop = TRUE;
       }
     }
   } unit_type_iterate_end;

@@ -11,7 +11,7 @@ AC_CONFIG_SRCDIR([common/game.c])
 AC_CONFIG_AUX_DIR(bootstrap) # This can't be quoted or automake will fail
 AC_CONFIG_MACRO_DIR([m4])
 ifdef([AC_CONFIG_MACRO_DIRS],[AC_CONFIG_MACRO_DIRS([dependencies/m4])])
-AC_CONFIG_HEADERS([gen_headers/fc_config.h gen_headers/freeciv_config.h])
+AC_CONFIG_HEADERS([gen_headers/fc_config.h gen_headers/freeciv_config.h gen_headers/liblua_config.h])
 AC_CANONICAL_HOST
 AC_USE_SYSTEM_EXTENSIONS
 AC_C_BIGENDIAN
@@ -92,7 +92,7 @@ dnl Sed is needed for the configuration
 dnl of the clients, database setting and the mapimg toolkits.
 AC_PROG_SED
 
-AC_CACHE_CHECK([for malloc(0) return value], [fc_cv_malloc_zero_ok], [
+AC_CACHE_CHECK([can we call malloc(0)], [fc_cv_malloc_zero_ok], [
 AC_RUN_IFELSE([AC_LANG_SOURCE([[
 #include <stdlib.h>
 
@@ -107,9 +107,9 @@ main()
 
   return (allocation == NULL);
 }
-]])], [fc_cv_malloc_zero_ok=true], [fc_cv_malloc_zero_ok=false], [fc_cv_malloc_zero_ok=false])])
+]])], [fc_cv_malloc_zero_ok=yes], [fc_cv_malloc_zero_ok=no], [fc_cv_malloc_zero_ok=no])])
 
-if test "x$fc_cv_malloc_zero_ok" = "xtrue" ; then
+if test "x$fc_cv_malloc_zero_ok" = "xyes" ; then
   AC_DEFINE([MALLOC_ZERO_OK], [1], [It's ok to call malloc() for zero bytes])
 fi
 
@@ -672,7 +672,7 @@ AC_C99_VARIABLE_ARRAYS
 AC_C99_INITIALIZERS
 AC_C99_STDINT_H
 
-FC_C99_INITIALIZER_BRACES
+FC_INITIALIZER_BRACES
 
 FC_C11_STATIC_ASSERT
 FC_C11_AT_QUICK_EXIT
@@ -1719,6 +1719,7 @@ AC_CONFIG_FILES([Makefile
           translations/ruledit/Makefile.in
 	  doc/Makefile
 	  doc/man/Makefile
+          doc/man/freeciv.6
           doc/man/freeciv-client.6
           doc/man/freeciv-server.6
           doc/man/freeciv-manual.6
