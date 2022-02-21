@@ -453,8 +453,9 @@ void handle_player_change_government(struct player *pplayer,
      * a government). */
     turns = pplayer->revolution_finishes - game.info.turn;
   } else if ((pplayer->ai_controlled && !has_handicap(pplayer, H_REVOLUTION))
-	     || !anarchy) {
+             || !anarchy) {
     /* AI players without the H_REVOLUTION handicap can skip anarchy */
+    anarchy = FALSE;
     turns = 0;
   } else {
     turns = revolution_length(gov, pplayer);
@@ -466,7 +467,8 @@ void handle_player_change_government(struct player *pplayer,
   if (anarchy && turns <= 0
       && pplayer->government != game.government_during_revolution) {
     /* Multiple changes attempted after single anarchy period */
-    if (game.info.revolentype == REVOLEN_QUICKENING) {
+    if (game.info.revolentype == REVOLEN_QUICKENING
+        || game.info.revolentype == REVOLEN_RANDQUICK) {
       notify_player(pplayer, NULL, E_REVOLT_DONE, ftc_server,
                     _("You can't revolt the same turn you finished previous revolution."));
       return;
