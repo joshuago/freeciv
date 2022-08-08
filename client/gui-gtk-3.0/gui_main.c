@@ -392,7 +392,7 @@ gboolean map_canvas_focus(void)
   This function ensures an entry widget (like the inputline) always gets
   first dibs at handling a keyboard event.
 **************************************************************************/
-static gboolean toplevel_handler(GtkWidget *w, GdkEventKey *ev, gpointer data)
+static gboolean toplevel_handler(GtkWidget *w, GdkEvent *ev, gpointer data)
 {
   GtkWidget *focus;
 
@@ -402,7 +402,7 @@ static gboolean toplevel_handler(GtkWidget *w, GdkEventKey *ev, gpointer data)
         || (GTK_IS_TEXT_VIEW(focus)
             && gtk_text_view_get_editable(GTK_TEXT_VIEW(focus)))) {
       /* Propagate event to currently focused entry widget. */
-      if (gtk_widget_event(focus, (GdkEvent *) ev)) {
+      if (gtk_widget_event(focus, ev)) {
 	/* Do not propagate event to our children. */
 	return TRUE;
       }
@@ -794,9 +794,9 @@ static void tearoff_destroy(GtkWidget *w, gpointer data)
 /**************************************************************************
   Propagates a keypress in a tearoff back to the toplevel window.
 **************************************************************************/
-static gboolean propagate_keypress(GtkWidget *w, GdkEventKey *ev)
+static gboolean propagate_keypress(GtkWidget *w, GdkEvent *ev)
 {
-  gtk_widget_event(toplevel, (GdkEvent *)ev);
+  gtk_widget_event(toplevel, ev);
 
   return FALSE;
 }
@@ -881,18 +881,20 @@ static void populate_unit_image_table(void)
   int i, width;
   GtkWidget *table = unit_image_table;
   GdkPixbuf *pix;
+  int ttw;
 
   /* get width of the overview window */
   width = (overview_canvas_store_width > GUI_GTK_OVERVIEW_MIN_XSIZE) ? overview_canvas_store_width
                                                : GUI_GTK_OVERVIEW_MIN_XSIZE;
 
+  ttw = tileset_tile_width(tileset);
   if (gui_options.gui_gtk3_small_display_layout) {
     /* We want arrow to appear if there is other units in addition
        to active one in tile. Active unit is not counted, so there
        can be 0 other units to not to display arrow. */
     num_units_below = 1 - 1;
   } else {
-    num_units_below = width / (int) tileset_tile_width(tileset);
+    num_units_below = width / (int) ttw;
     num_units_below = CLIP(1, num_units_below, MAX_NUM_UNITS_BELOW);
   }
 
@@ -903,6 +905,7 @@ static void populate_unit_image_table(void)
   gtk_widget_add_events(unit_image, GDK_BUTTON_PRESS_MASK);
   g_object_ref(unit_image);
   unit_image_button = gtk_event_box_new();
+  gtk_widget_set_size_request(unit_image_button, ttw, -1);
   gtk_event_box_set_visible_window(GTK_EVENT_BOX(unit_image_button), FALSE);
   g_object_ref(unit_image_button);
   gtk_container_add(GTK_CONTAINER(unit_image_button), unit_image);
@@ -919,7 +922,9 @@ static void populate_unit_image_table(void)
       gtk_widget_add_events(unit_below_image[i], GDK_BUTTON_PRESS_MASK);
       unit_below_image_button[i] = gtk_event_box_new();
       g_object_ref(unit_below_image_button[i]);
-      gtk_event_box_set_visible_window(GTK_EVENT_BOX(unit_below_image_button[i]), FALSE);
+      gtk_widget_set_size_request(unit_below_image_button[i], ttw, -1);
+      gtk_event_box_set_visible_window(GTK_EVENT_BOX(unit_below_image_button[i]),
+                                       FALSE);
       gtk_container_add(GTK_CONTAINER(unit_below_image_button[i]),
                         unit_below_image[i]);
       g_signal_connect(unit_below_image_button[i],
