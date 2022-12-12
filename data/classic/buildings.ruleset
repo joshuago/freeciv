@@ -277,6 +277,7 @@ City Walls make it easier to defend a city.  They triple the defense\
 [building_coastal_defense]
 name		= _("Coastal Defense")
 genus		= "Improvement"
+flags		= "VisibleByOthers"
 reqs	=
     { "type", "name", "range"
       "Tech", "Gunpowder", "Player"
@@ -804,6 +805,7 @@ Together with a Library and a University, a Research Lab increases\
 [building_sam_battery]
 name		= _("SAM Battery")
 genus		= "Improvement"
+flags		= "VisibleByOthers"
 reqs	=
     { "type", "name", "range"
       "Tech", "Rocketry", "Player"
