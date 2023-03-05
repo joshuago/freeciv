@@ -31,6 +31,7 @@
 #endif /* SDL2_PLAIN_INCLUDE */
 
 /* utility */
+#include "astring.h"
 #include "bitvector.h"
 #include "fcintl.h"
 #include "log.h"
@@ -1115,6 +1116,9 @@ void unit_select_dialog_popup(struct tile *ptile)
     vetname = utype_veteran_name_translation(pUnitType, pUnit->veteran);
 
     if (unit_owner(pUnit) == client.conn.playing) {
+      struct astring addition = ASTRING_INIT;
+
+      unit_activity_astr(pUnit, &addition);
       fc_snprintf(cBuf , sizeof(cBuf), _("Contact %s (%d / %d) %s(%d,%d,%s) %s"),
                   (vetname != NULL ? vetname : ""),
                   pUnit->hp, pUnitType->hp,
@@ -1122,7 +1126,8 @@ void unit_select_dialog_popup(struct tile *ptile)
                   pUnitType->attack_strength,
                   pUnitType->defense_strength,
                   move_points_text(pUnitType->move_rate, FALSE),
-                  unit_activity_text(pUnit));
+                  astr_str(&addition));
+      astr_free(&addition);
     } else {
       int att_chance, def_chance;
 
@@ -1878,6 +1883,9 @@ void popup_advanced_terrain_dialog(struct tile *ptile, Uint16 pos_x, Uint16 pos_
         vetname = utype_veteran_name_translation(pUnitType, pUnit->veteran);
 
         if (unit_owner(pUnit) == client.conn.playing) {
+          struct astring addition = ASTRING_INIT;
+
+          unit_activity_astr(pUnit, &addition);
           fc_snprintf(cBuf, sizeof(cBuf),
                       _("Activate %s (%d / %d) %s (%d,%d,%s) %s"),
                       (vetname != NULL ? vetname : ""),
@@ -1886,8 +1894,9 @@ void popup_advanced_terrain_dialog(struct tile *ptile, Uint16 pos_x, Uint16 pos_
                       pUnitType->attack_strength,
                       pUnitType->defense_strength,
                       move_points_text(pUnitType->move_rate, FALSE),
-                      unit_activity_text(pUnit));
-    
+                      astr_str(&addition));
+          astr_free(&addition);
+
           create_active_iconlabel(pBuf, pWindow->dst, pstr,
                                   cBuf, adv_unit_select_callback);
           pBuf->data.unit = pUnit;
@@ -1990,6 +1999,9 @@ void popup_advanced_terrain_dialog(struct tile *ptile, Uint16 pos_x, Uint16 pos_
         vetname = utype_veteran_name_translation(pUnitType, pUnit->veteran);
         if ((pCity && city_owner(pCity) == client.conn.playing)
             || (unit_owner(pUnit) == client.conn.playing)) {
+          struct astring addition = ASTRING_INIT;
+
+          unit_activity_astr(pUnit, &addition);
           fc_snprintf(cBuf, sizeof(cBuf),
                       _("Activate %s (%d / %d) %s (%d,%d,%s) %s"),
                       (vetname != NULL ? vetname : ""),
@@ -1998,7 +2010,8 @@ void popup_advanced_terrain_dialog(struct tile *ptile, Uint16 pos_x, Uint16 pos_
                       pUnitType->attack_strength,
                       pUnitType->defense_strength,
                       move_points_text(pUnitType->move_rate, FALSE),
-                      unit_activity_text(pUnit));
+                      astr_str(&addition));
+          astr_free(&addition);
 
           create_active_iconlabel(pBuf, pWindow->dst, pstr,
                                   cBuf, adv_unit_select_callback);
@@ -2373,31 +2386,27 @@ static int move_government_dlg_callback(struct widget *pWindow)
 }
 
 /**************************************************************************
-  Public -
-
-  Popup a dialog asking the player what government to switch to (this
-  happens after a revolution completes).
+  Popup a dialog asking the player what government to switch to.
 **************************************************************************/
 void popup_government_dialog(void)
 {
-  SDL_Surface *pLogo = NULL;
-  struct utf8_str *pstr = NULL;
+  struct utf8_str *pstr;
   struct widget *pGov_Button = NULL;
-  struct widget *pWindow = NULL;
+  struct widget *pWindow;
   int j;
   Uint16 max_w = 0, max_h = 0;
   SDL_Rect area;
 
-  if (pGov_Dlg) {
+  if (pGov_Dlg != NULL) {
     return;
   }
 
   pGov_Dlg = fc_calloc(1, sizeof(struct SMALL_DLG));
 
-  /* create window */
+  /* Create window */
   pstr = create_utf8_from_char(_("Choose Your New Government"), adj_font(12));
   pstr->style |= TTF_STYLE_BOLD;
-  /* this win. size is temp. */
+  /* This win. size is temp. */
   pWindow = create_window_skeleton(NULL, pstr, 0);
   pWindow->action = move_government_dlg_callback;
   add_to_gui_list(ID_GOVERNMENT_DLG_WINDOW, pWindow);
@@ -2406,7 +2415,7 @@ void popup_government_dialog(void)
 
   area = pWindow->area;
 
-  /* create gov. buttons */
+  /* Create gov. buttons */
   j = 0;
   governments_iterate(pGov) {
     if (pGov == game.government_during_revolution) {
@@ -2422,51 +2431,59 @@ void popup_government_dialog(void)
       max_w = MAX(max_w, pGov_Button->size.w);
       max_h = MAX(max_h, pGov_Button->size.h);
 
-      /* ugly hack */
+      /* Ugly hack */
       add_to_gui_list((MAX_ID - government_number(pGov)), pGov_Button);
       j++;
 
     }
   } governments_iterate_end;
 
-  pGov_Dlg->pBeginWidgetList = pGov_Button;
+  if (pGov_Button == NULL) {
+    /* No governments to switch.
+     * TODO: Provide close button for the dialog. */
+    pGov_Dlg->pBeginWidgetList = pGov_Dlg->pEndWidgetList;
+  } else {
+    SDL_Surface *logo;
 
-  max_w += adj_size(10);
-  max_h += adj_size(4);
+    pGov_Dlg->pBeginWidgetList = pGov_Button;
 
-  area.w = MAX(area.w, max_w + adj_size(20));
-  area.h = MAX(area.h, j * (max_h + adj_size(10)) + adj_size(5));
+    max_w += adj_size(10);
+    max_h += adj_size(4);
 
-  /* create window background */
-  pLogo = theme_get_background(theme, BACKGROUND_CHOOSEGOVERNMENTDLG);
-  if (resize_window(pWindow, pLogo, NULL,
-                    (pWindow->size.w - pWindow->area.w) + area.w,
-                    (pWindow->size.h - pWindow->area.h) + area.h)) {
-    FREESURFACE(pLogo);
-  }
+    area.w = MAX(area.w, max_w + adj_size(20));
+    area.h = MAX(area.h, j * (max_h + adj_size(10)) + adj_size(5));
 
-  area = pWindow->area;
+    /* Create window background */
+    logo = theme_get_background(theme, BACKGROUND_CHOOSEGOVERNMENTDLG);
+    if (resize_window(pWindow, logo, NULL,
+                      (pWindow->size.w - pWindow->area.w) + area.w,
+                      (pWindow->size.h - pWindow->area.h) + area.h)) {
+      FREESURFACE(logo);
+    }
 
-  /* set window start positions */
-  widget_set_position(pWindow,
-                      (main_window_width() - pWindow->size.w) / 2,
-                      (main_window_height() - pWindow->size.h) / 2);
+    area = pWindow->area;
 
-  /* set buttons start positions and size */
-  j = 1;
-  while (pGov_Button != pGov_Dlg->pEndWidgetList) {
-    pGov_Button->size.w = max_w;
-    pGov_Button->size.h = max_h;
-    pGov_Button->size.x = area.x + adj_size(10);
-    pGov_Button->size.y = area.y + area.h - (j++) * (max_h + adj_size(10));
-    set_wstate(pGov_Button, FC_WS_NORMAL);
+    /* Set window start positions */
+    widget_set_position(pWindow,
+                        (main_window_width() - pWindow->size.w) / 2,
+                        (main_window_height() - pWindow->size.h) / 2);
 
-    pGov_Button = pGov_Button->next;
+    /* Set buttons start positions and size */
+    j = 1;
+    while (pGov_Button != pGov_Dlg->pEndWidgetList) {
+      pGov_Button->size.w = max_w;
+      pGov_Button->size.h = max_h;
+      pGov_Button->size.x = area.x + adj_size(10);
+      pGov_Button->size.y = area.y + area.h - (j++) * (max_h + adj_size(10));
+      set_wstate(pGov_Button, FC_WS_NORMAL);
+
+      pGov_Button = pGov_Button->next;
+    }
   }
 
   set_wstate(pWindow, FC_WS_NORMAL);
 
-  /* redraw */
+  /* Redraw */
   redraw_group(pGov_Dlg->pBeginWidgetList, pWindow, 0);
 
   widget_flush(pWindow);

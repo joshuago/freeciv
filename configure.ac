@@ -586,13 +586,19 @@ AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_LN_S
 AC_DISABLE_SHARED
+
+dnl AC_PROG_AR() added in autoconf-2.72
+m4_ifdef([AC_PROG_AR],
+   [AC_PROG_AR],
+   [m4_ifdef([AM_PROG_AR], [AM_PROG_AR], [AC_CHECK_TOOL([AR], [ar])])])
+
 dnl Replace AC_PROG_LIBTOOL with LT_INIT when minimum libtool
 dnl version 2.2
-m4_ifdef([AM_PROG_AR], [AM_PROG_AR], [AC_CHECK_TOOL([AR], [ar])])
 AC_PROG_LIBTOOL
 AC_SUBST(LIBTOOL)
+
 if test -z $AR; then
-	AC_MSG_ERROR([*** 'ar' missing.  Install binutils, fix your \$PATH, or set \$AR manually. ***])
+  AC_MSG_ERROR([*** 'ar' missing. Install binutils, fix your \$PATH, or set \$AR manually. ***])
 fi
 
 AM_PROG_CC_C_O
@@ -645,10 +651,15 @@ PKG_PROG_PKG_CONFIG
 if test "x$PKG_CONFIG" = "x" ; then
   AC_MSG_ERROR([pkg-config not found])
 fi
-PKG_CHECK_MODULES([CURL], [libcurl >= 7.12.1],,
-    [AC_MSG_ERROR([libcurl development files required])])
-UTILITY_CFLAGS="${UTILITY_CFLAGS} ${CURL_CFLAGS}"
-UTILITY_LIBS="${UTILITY_LIBS} ${CURL_LIBS}"
+
+PKG_CHECK_MODULES([CURL_MIME_API], [libcurl > 7.56.0],
+  [UTILITY_CFLAGS="${UTILITY_CFLAGS} ${CURL_MIME_API_CFLAGS}"
+   UTILITY_LIBS="${UTILITY_LIBS} ${CURL_MIME_API_LIBS}"
+  AC_DEFINE([HAVE_CURL_MIME_API], [1], [libcurl has the mime api])],
+  [PKG_CHECK_MODULES([CURL], [libcurl >= 7.12.1],
+    [UTILITY_CFLAGS="${UTILITY_CFLAGS} ${CURL_CFLAGS}"
+     UTILITY_LIBS="${UTILITY_LIBS} ${CURL_LIBS}"],
+    [AC_MSG_ERROR([libcurl development files required])])])
 
 AC_ARG_ENABLE([xml-registry],
   AS_HELP_STRING([--enable-xml-registry], [build xml-backend for registry (WIP)]),
@@ -1480,6 +1491,8 @@ feature_syslua=missing
 sys_lua=false])])])
 fi
 
+AC_CHECK_FUNCS([localtime_r])
+
 if test "x$sys_lua" != "xtrue" ; then
   dnl Checks needed for included lua.
   gl_FUNC_MKSTEMP
@@ -1487,7 +1500,7 @@ if test "x$sys_lua" != "xtrue" ; then
     dnl if only "guessing yes", do not try to use mkstemp, but fallback
     AC_DEFINE([HAVE_MKSTEMP], [1], [Have working mkstemp])
   fi
-  AC_CHECK_FUNCS([popen pclose _longjmp _setjmp gmtime_r localtime_r])
+  AC_CHECK_FUNCS([popen pclose _longjmp _setjmp gmtime_r])
 
   LUA_CFLAGS="-I\$(top_srcdir)/dependencies/lua-5.3/src"
   LUA_LIBS="\$(top_builddir)/dependencies/lua-5.3/src/liblua.la"
