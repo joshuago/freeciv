@@ -1,0 +1,68 @@
+[nation_corporate]
+
+name=_("Corporate")
+plural=_("?plural:Corporates")
+groups="Imaginary"
+legend=_("The Corporates are a sub-group drawn from global multi-national\
+ as well as American domestic company culture. They are characterized by\
+ unique sounding speech.")
+
+leaders = {
+ "name",            "sex"
+ "Beff Jezos",          "Male"
+ "Barron Wuffett",     "Male"
+ "Gill Bates",     "Male"
+ "Wack Jelch",     "Male"
+}
+
+ruler_titles = {
+ "government",      "male_title",            "female_title"
+ "Democracy",       _("Chancellor %s"),      _("?female:Chancellor %s")
+}
+
+flag="corporate"
+flag_alt = "-"
+style = "Celtic"
+
+init_techs=""
+init_buildings=""
+init_units=""
+
+civilwar_nations="Hacker", "Antarctican", "Atlantean", "Martian"
+
+cities =
+ "Action Item", ;
+ "Best Practices", ;
+ "Circle Back Bay", ;
+ "Deliverable", ;
+ "Ebitda", ;earnings before interest, taxes, depreciation, and amortization
+ "Enterprise Grade", ;
+ "Follow-Up Field", ;
+ "Green Shoots", ;  
+ "Headwind Landing", ; when things get tough 
+ "Low-Hanging Fruit", ; easy stuff with highest payoff 
+ "Margin Compression", ; making less money
+ "Net-New", ;  
+ "Operating Margin", ;  
+ "Pain Point", ;
+ "Synergy", ;
+ "Tailwind Lake", ; when things get easier
+ "Tiger Team", ;
+ "Touch Base", ;
+ "Wheelhouse", ;
+ "Additional Color", ;for more details
+ "Basis Point", ; when percent is not granular enough 
+ "Deep Dive", ;
+ "Ducks in a Row", ;
+ "Flagpole", ; for running things up
+ "Free Cash Flow", ;
+ "Gentle Reminder", ;
+ "Line of Sight", ;
+ "Margin Expansion", ; making more money
+ "Mission Critical", ;  
+ "Optics", ;  
+ "Paradigm Shift", ;
+ "Puts and Takes", ;when it gets complicated
+ "Table Stakes", ;
+ "Material Impact" ;
+

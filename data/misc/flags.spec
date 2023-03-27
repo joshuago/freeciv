@@ -702,6 +702,7 @@ sprites =
 		"f.comoros", "flags/comoros"
 ;		"f.constantine", "flags/constantine"	; alt. Byzantine
 		"f.cornwall", "flags/cornwall"
+		"f.corporate", "flags/corporate"
 		"f.corsica", "flags/corsica"
 		"f.cossack", "flags/cossack"
 		"f.costa_rica", "flags/costa_rica"

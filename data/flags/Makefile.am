@@ -122,6 +122,7 @@ flag_files =				\
 		comoros.png		\
 		constantine.png		\
 		cornwall.png		\
+		corporate.png		\
 		corsica.png		\
 		cossack.png		\
 		costa_rica.png		\
@@ -690,6 +691,7 @@ flag_files =				\
 		comoros-large.png		\
 		constantine-large.png		\
 		cornwall-large.png		\
+		corporate-large.png		\
 		corsica-large.png		\
 		cossack-large.png		\
 		costa_rica-large.png		\
@@ -1260,6 +1262,7 @@ shield_files =					\
 		comoros-shield.png		\
 		constantine-shield.png		\
 		cornwall-shield.png		\
+		corporate-shield.png		\
 		corsica-shield.png		\
 		costa_rica-shield.png		\
 		cossack-shield.png		\
@@ -1828,6 +1831,7 @@ shield_files =					\
 		comoros-shield-large.png		\
 		constantine-shield-large.png		\
 		cornwall-shield-large.png		\
+		corporate-shield-large.png		\
 		corsica-shield-large.png		\
 		costa_rica-shield-large.png		\
 		cossack-shield-large.png		\
@@ -2398,6 +2402,7 @@ svg_files = 				\
 		comoros.svg		\
 		constantine.svg		\
 		cornwall.svg		\
+		corporate.svg		\
 		corsica.svg		\
 		cossack.svg		\
 		costa_rica.svg		\

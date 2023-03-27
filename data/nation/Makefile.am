@@ -129,6 +129,7 @@ pkgdata_DATA = \
 		congolese.ruleset \
 		congolesebrazzaville.ruleset \
 		cornish.ruleset \
+		corporate.ruleset \
 		corsican.ruleset \
 		cossack.ruleset \
 		costarican.ruleset \

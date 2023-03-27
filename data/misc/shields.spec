@@ -130,6 +130,7 @@ sprites =
 		"f.shield.comoros", "flags/comoros-shield"
 ;		"f.shield.constantine", "flags/constantine-shield"
 		"f.shield.cornwall", "flags/cornwall-shield"
+		"f.shield.corporate", "flags/corporate-shield"
 		"f.shield.corsica", "flags/corsica-shield"
 		"f.shield.costa_rica", "flags/costa_rica-shield"
 		"f.shield.cossack", "flags/cossack-shield"
