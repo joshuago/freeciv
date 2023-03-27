@@ -131,9 +131,9 @@
        height="100.54166"
        x="0"
        y="95.916672"
-       style="stroke-width:0.26458332;fill:#ffd42a;fill-opacity:1" />
+       style="stroke-width:0.26458332;fill:#aa0000;fill-opacity:1" />
     <rect
-       style="fill:#333333;fill-opacity:1;stroke-width:0.26458332"
+       style="fill:#0000ff;fill-opacity:1;stroke-width:0.26458332"
        id="rect4837"
        width="301.625"
        height="100.54167"
@@ -141,7 +141,7 @@
        y="196.45833" />
     <path
        sodipodi:type="star"
-       style="fill:#7137c8;stroke-width:0.40916744"
+       style="fill:#f9f9f9;stroke-width:0.40916744"
        id="path40"
        sodipodi:sides="5"
        sodipodi:cx="145.51324"
