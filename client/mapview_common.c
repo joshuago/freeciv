@@ -1685,10 +1685,26 @@ void update_map_canvas(int canvas_x, int canvas_y, int width, int height)
   bool full;
   struct canvas *tmp;
 
-  canvas_x = MAX(canvas_x, 0);
-  canvas_y = MAX(canvas_y, 0);
-  width = MIN(mapview.store_width - canvas_x, width);
-  height = MIN(mapview.store_height - canvas_y, height);
+  if (canvas_x < 0) {
+    width += canvas_x;
+    canvas_x = 0;
+  } else if (canvas_x > mapview.store_width) {
+    width -= (canvas_x - mapview.store_width);
+    canvas_x = mapview.store_width;
+  }
+
+  if (canvas_y < 0) {
+    height += canvas_y;
+    canvas_y = 0;
+  } else if (canvas_y > mapview.store_height) {
+    height -= (canvas_y - mapview.store_height);
+    canvas_y = mapview.store_height;
+  }
+
+  if (width <= 0 || height <= 0) {
+    /* Area outside mapview */
+    return;
+  }
 
   gui_x0 = mapview.gui_x0 + canvas_x;
   gui_y0 = mapview.gui_y0 + canvas_y;
@@ -2515,6 +2531,8 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
     struct animation *anim = fc_malloc(sizeof(struct animation));
     struct unit *winning_unit;
     int winner_end_hp;
+    int aw = tileset_tile_width(tileset) * map_zoom;
+    int ah = tileset_tile_height(tileset) * map_zoom;
 
     if (losing_unit == punit1) {
       winning_unit = punit0;
@@ -2541,6 +2559,8 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
     anim->battle.winner_hp_end = winner_end_hp;
     anim->battle.steps = MAX(losing_unit->hp,
                              anim->battle.winner_hp_start - winner_end_hp);
+    anim->width = aw;
+    anim->height = ah;
     animation_add(anim);
 
     anim = fc_malloc(sizeof(struct animation));
@@ -2549,8 +2569,8 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
     anim->expl.tile = losing_unit->tile;
     anim->expl.sprites = get_unit_explode_animation(tileset);
     anim->expl.sprite_count = sprite_vector_size(anim->expl.sprites);
-    anim->width = tileset_tile_width(tileset) * map_zoom;
-    anim->height = tileset_tile_height(tileset) * map_zoom;
+    anim->width = aw;
+    anim->height = ah;
     animation_add(anim);
   } else {
     const struct sprite_vector *anim = get_unit_explode_animation(tileset);
