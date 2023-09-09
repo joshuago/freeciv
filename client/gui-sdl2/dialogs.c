@@ -545,7 +545,7 @@ void popup_notify_dialog(const char *caption, const char *headline,
   add_to_gui_list(ID_BUTTON, pBuf);
   pNotifyDlg->pBeginWidgetList = pBuf;
 
-  pstr = create_utf8_from_char(headline, adj_font(16));
+  pstr = create_utf8_from_char_fonto(headline, FONTO_BIG);
   pstr->style |= TTF_STYLE_BOLD;
 
   pHeadline = create_text_surf_from_utf8(pstr);
@@ -2870,8 +2870,10 @@ static int nation_button_callback(struct widget *pNationButton)
       pHelpDlg->pEndWidgetList = pWindow;
       add_to_gui_list(ID_WINDOW, pWindow);
 
-      pOK_Button = create_themeicon_button_from_chars(current_theme->OK_Icon,
-                               pWindow->dst, _("OK"), adj_font(14), 0);
+      pOK_Button
+        = create_themeicon_button_from_chars_fonto(current_theme->OK_Icon,
+                                                   pWindow->dst, _("OK"),
+                                                   FONTO_HEADING, 0);
       pOK_Button->action = cancel_help_dlg_callback;
       set_wstate(pOK_Button, FC_WS_NORMAL);
       pOK_Button->key = SDLK_ESCAPE;
@@ -2880,7 +2882,8 @@ static int nation_button_callback(struct widget *pNationButton)
     } else {
       pWindow = pHelpDlg->pEndWidgetList;
       pOK_Button = pHelpDlg->pBeginWidgetList;
-      /* undraw window */
+
+      /* Undraw window */
       widget_undraw(pWindow);
       widget_mark_dirty(pWindow);
     }
@@ -3230,9 +3233,10 @@ void popup_races_dialog(struct player *pplayer)
 
   add_to_gui_list(ID_LABEL, pWidget);
 
-  /* create leader name edit */
-  pWidget = create_edit_from_chars(NULL, pWindow->dst,
-                                   NULL, adj_font(16), adj_size(200), 0);
+  /* Create leader name edit */
+  pWidget = create_edit_from_chars_fonto(NULL, pWindow->dst,
+                                         NULL, FONTO_BIG,
+                                         adj_size(200), 0);
   pWidget->size.h = adj_size(24);
 
   set_wstate(pWidget, FC_WS_NORMAL);
@@ -3256,15 +3260,17 @@ void popup_races_dialog(struct player *pplayer)
   pWidget->size.h = pWidget->next->size.h;
   pSetup->pName_Prev = pWidget;
 
-  /* change sex button */
-  pWidget = create_icon_button_from_chars(NULL, pWindow->dst, _("Male"), adj_font(14), 0);
+  /* Change sex button */
+  pWidget = create_icon_button_from_chars_fonto(NULL, pWindow->dst,
+                                                _("Male"),
+                                                FONTO_HEADING, 0);
   pWidget->action = change_sex_callback;
   pWidget->size.w = adj_size(100);
   pWidget->size.h = adj_size(22);
   set_wstate(pWidget, FC_WS_NORMAL);
   pSetup->pChange_Sex = pWidget;
 
-  /* add to main widget list */
+  /* Add to main widget list */
   add_to_gui_list(ID_NATION_WIZARD_CHANGE_SEX_BUTTON, pWidget);
 
   /* ---------------------------------------------------------- */
