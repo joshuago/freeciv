@@ -67,7 +67,6 @@
 
 #include "mapview.h"
 
-extern SDL_Event *flush_event;
 extern SDL_Rect *pInfo_Area;
 
 int overview_start_x = 0;
@@ -146,17 +145,17 @@ void unqueue_flush(void)
 
 /**************************************************************************
   Called when a region is marked dirty, this function queues a flush event
-  to be handled later by SDL.  The flush may end up being done
+  to be handled later by SDL. The flush may end up being done
   by freeciv before then, in which case it will be a wasted call.
 **************************************************************************/
 void queue_flush(void)
 {
   if (!is_flush_queued) {
-    if (SDL_PushEvent(flush_event) >= 0) {
+    if (flush_event()) {
       is_flush_queued = TRUE;
     } else {
       /* We don't want to set is_flush_queued in this case, since then
-       * the flush code would simply stop working.  But this means the
+       * the flush code would simply stop working. But this means the
        * below message may be repeated many times. */
       log_error(_("Failed to add events to SDL2 event buffer: %s"),
                 SDL_GetError());
@@ -395,7 +394,7 @@ void overview_size_changed(void)
 
 /**************************************************************************
   Typically an info box is provided to tell the player about the state
-  of their civilization.  This function is called when the label is
+  of their civilization. This function is called when the label is
   changed.
 **************************************************************************/
 void update_info_label(void)
@@ -414,13 +413,9 @@ void update_info_label(void)
     return;
   }
 
-#ifdef SMALL_SCREEN
-  ptext = create_utf8_str(NULL, 0, 8);
-#else
-  ptext = create_utf8_str(NULL, 0, 10);
-#endif
+  ptext = create_utf8_str_fonto(NULL, 0, FONTO_DEFAULT);
 
-  /* set text settings */
+  /* Set text settings */
   ptext->style |= TTF_STYLE_BOLD;
   ptext->fgcol = *get_theme_color(COLOR_THEME_MAPVIEW_INFO_TEXT);
   ptext->bgcol = (SDL_Color) {0, 0, 0, 0};
@@ -446,7 +441,8 @@ void update_info_label(void)
                 client.conn.playing->economic.luxury,
                 client.conn.playing->economic.science);
 #endif /* SMALL_SCREEN */
-    /* convert to unistr and create text surface */
+
+    /* Convert to unistr and create text surface */
     copy_chars_to_utf8_str(ptext, buffer);
     pTmp = create_text_surf_from_utf8(ptext);
 
@@ -454,26 +450,30 @@ void update_info_label(void)
     area.w = pTmp->w + adj_size(8);
     area.h = pTmp->h + adj_size(4);
 
-    SDL_FillRect(Main.gui->surface, &area , map_rgba(Main.gui->surface->format, bg_color));
+    SDL_FillRect(Main.gui->surface, &area,
+                 map_rgba(Main.gui->surface->format, bg_color));
 
     /* Horizontal lines */
     create_line(Main.gui->surface,
                 area.x + 1, area.y, area.x + area.w - 2, area.y,
                 get_theme_color(COLOR_THEME_MAPVIEW_INFO_FRAME));
     create_line(Main.gui->surface,
-                area.x + 1, area.y + area.h - 1, area.x + area.w - 2, area.y + area.h - 1,
+                area.x + 1, area.y + area.h - 1,
+                area.x + area.w - 2, area.y + area.h - 1,
                 get_theme_color(COLOR_THEME_MAPVIEW_INFO_FRAME));
 
-    /* vertical lines */
+    /* Vertical lines */
     create_line(Main.gui->surface,
-                area.x + area.w - 1, area.y + 1, area.x + area.w - 1, area.y + area.h - 2,
+                area.x + area.w - 1, area.y + 1,
+                area.x + area.w - 1, area.y + area.h - 2,
                 get_theme_color(COLOR_THEME_MAPVIEW_INFO_FRAME));
     create_line(Main.gui->surface,
                 area.x, area.y + 1, area.x, area.y + area.h - 2,
                 get_theme_color(COLOR_THEME_MAPVIEW_INFO_FRAME));
 
-    /* blit text to screen */
-    blit_entire_src(pTmp, Main.gui->surface, area.x + adj_size(5), area.y + adj_size(2));
+    /* Blit text to screen */
+    blit_entire_src(pTmp, Main.gui->surface,
+                    area.x + adj_size(5), area.y + adj_size(2));
 
     dirty_sdl_rect(&area);
 
@@ -941,7 +941,7 @@ void redraw_unit_info_label(struct unit_list *punitlist)
 
         fc_snprintf(buf, sizeof(buf), "%s\n%s\n%s",
                     _("End of Turn"), _("Press"), _("Shift+Return"));
-        pstr = create_utf8_from_char(buf, adj_font(14));
+        pstr = create_utf8_from_char_fonto(buf, FONTO_HEADING);
         pstr->style = SF_CENTER;
         pstr->bgcol = (SDL_Color) {0, 0, 0, 0};
         buf_surf = create_text_surf_from_utf8(pstr);
@@ -951,7 +951,7 @@ void redraw_unit_info_label(struct unit_list *punitlist)
         alphablit(buf_surf, NULL, pInfo_Window->dst->surface, &area, 255);
         FREESURFACE(buf_surf);
         FREEUTF8STR(pstr);
-        /* fix the bug of child dialogues not showing up when player's turn ends */
+        /* Fix the bug of child dialogues not showing up when player's turn ends */
         flush_all();
       }
     }
