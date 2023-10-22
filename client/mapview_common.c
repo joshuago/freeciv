@@ -183,7 +183,7 @@ void animations_free(void)
 
       switch (anim->type) {
       case ANIM_MOVEMENT:
-        free(anim->movement.mover);
+        unit_virtual_destroy(anim->movement.mover);
         break;
       case ANIM_BATTLE:
         unit_virtual_destroy(anim->battle.virt_winner);
@@ -199,6 +199,7 @@ void animations_free(void)
     }
 
     animation_list_destroy(animations);
+    animations = NULL;
   }
 }
 
@@ -248,9 +249,7 @@ static bool movement_animation(struct animation *anim, double time_gone)
 
     if (time_gone >= timing_sec) {
       /* Animation over */
-      if (--anim->movement.mover->refcount <= 0) {
-        free(anim->movement.mover);
-      }
+      unit_virtual_destroy(anim->movement.mover);
 
       return TRUE;
     }
@@ -2724,8 +2723,11 @@ void move_unit_map_canvas(struct unit *punit,
 
       anim->type = ANIM_MOVEMENT;
       anim->id = punit->id;
-      punit->refcount++;
-      anim->movement.mover = punit;
+      anim->movement.mover = unit_virtual_create(unit_owner(punit),
+                                                 NULL, unit_type_get(punit),
+                                                 punit->veteran);
+      anim->movement.mover->hp = punit->hp;
+      anim->movement.mover->facing = punit->facing;
       anim->movement.src = src_tile;
       anim->movement.dest = dest_tile;
       anim->movement.canvas_dx = canvas_dx;
