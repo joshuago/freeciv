@@ -17,7 +17,7 @@ leaders = {
 
 ruler_titles = {
  "government",      "male_title",            "female_title"
- "Democracy",       _("Chancellor %s"),      _("?female:Chancellor %s")
+ "Democracy",       _("Chief Executive %s"),      _("?female:Chief Executive %s")
 }
 
 flag="corporate"
@@ -60,9 +60,12 @@ cities =
  "Line of Sight", ;
  "Margin Expansion", ; making more money
  "Mission Critical", ;  
+ "Needle Thread", ;
  "Optics", ;  
  "Paradigm Shift", ;
  "Puts and Takes", ;when it gets complicated
  "Table Stakes", ;
- "Material Impact" ;
+ "Material Impact", ;
+ "Alignment", ;
+ "Meaningful Upside" ;
 
