@@ -2229,6 +2229,8 @@ static void sg_load_game(struct loaddata *loading)
   sg_failure_ret(20299 <= game_version, "Saved game is too old, at least "
                                         "version 2.2.99 required.");
 
+  (void) secfile_entry_lookup(loading->file, "scenario.game_version");
+
   /* Load server state. */
   string = secfile_lookup_str_default(loading->file, "S_S_INITIAL",
                                       "game.server_state");
@@ -2846,6 +2848,11 @@ static void sg_load_map(struct loaddata *loading)
    *   2) when map is actually generated, it re-initialize this to FALSE. */
   game.map.server.have_huts
     = secfile_lookup_bool_default(loading->file, TRUE, "map.have_huts");
+
+  /* Savegame may have stored random_seed for documentation purposes only,
+   * but we want to keep it for resaving. */
+  game.map.server.seed
+    = secfile_lookup_int_default(loading->file, 0, "map.random_seed");
 
   if (S_S_INITIAL == loading->server_state
       && MAPGEN_SCENARIO == game.map.server.generator) {
