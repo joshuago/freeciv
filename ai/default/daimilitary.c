@@ -276,10 +276,13 @@ int assess_defense_quadratic(struct ai_type *ait, struct city *pcity)
     walls++;
   }
 
-  unit_list_iterate(pcity->tile->units, punit) {
-    defense += base_assess_defense_unit(pcity, punit, igwall, FALSE,
-                                        walls);
-  } unit_list_iterate_end;
+  /* Performance optimization: skip if no units defending city */
+  if (unit_list_size(pcity->tile->units) > 0) {
+    unit_list_iterate(pcity->tile->units, punit) {
+      defense += base_assess_defense_unit(pcity, punit, igwall, FALSE,
+                                          walls);
+    } unit_list_iterate_end;
+  }
 
   if (defense > 1<<12) {
     CITY_LOG(LOG_VERBOSE, pcity, "Overflow danger in assess_defense_quadratic:"
@@ -315,9 +318,12 @@ static int assess_defense_backend(struct ai_type *ait, struct city *pcity,
   /* Estimate of our total city defensive might */
   int defense = 0;
 
-  unit_list_iterate(pcity->tile->units, punit) {
-    defense += assess_defense_unit(ait, pcity, punit, igwall);
-  } unit_list_iterate_end;
+  /* Performance optimization: skip if no units defending city */
+  if (unit_list_size(pcity->tile->units) > 0) {
+    unit_list_iterate(pcity->tile->units, punit) {
+      defense += assess_defense_unit(ait, pcity, punit, igwall);
+    } unit_list_iterate_end;
+  }
 
   return defense;
 }
@@ -501,11 +507,13 @@ static unsigned int assess_danger(struct ai_type *ait, struct city *pcity)
     defender_type_handled[utype_index(utype)] = FALSE;
   } unit_type_iterate_end;
 
-  unit_list_iterate(ptile->units, punit) {
-    struct unit_type *def = unit_type_get(punit);
+  /* Performance optimization: skip if no units on city tile */
+  if (unit_list_size(ptile->units) > 0) {
+    unit_list_iterate(ptile->units, punit) {
+      struct unit_type *def = unit_type_get(punit);
 
-    if (unit_has_type_flag(punit, UTYF_DIPLOMAT)) {
-      city_data->has_diplomat = TRUE;
+      if (unit_has_type_flag(punit, UTYF_DIPLOMAT)) {
+        city_data->has_diplomat = TRUE;
     }
     if (!defender_type_handled[utype_index(def)]) {
       /* This is first defender of this type. Check defender type
@@ -525,8 +533,9 @@ static unsigned int assess_danger(struct ai_type *ait, struct city *pcity)
       }
 
       defender_type_handled[utype_index(def)] = TRUE;
-    }
-  } unit_list_iterate_end;
+      }
+    } unit_list_iterate_end;
+  } /* unit_list_size check */
 
   if (player_is_cpuhog(pplayer)) {
     assess_turns = 6;
