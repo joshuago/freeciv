@@ -593,11 +593,33 @@ void unit_focus_set_and_select(struct unit *punit)
 **************************************************************************/
 static struct unit *find_best_focus_candidate(bool accept_current)
 {
-  struct tile *ptile = get_center_tile_mapcanvas();
+  struct tile *ptile;
+  struct unit *pfirst;
+
+  /* First, check the current focus tile for eligible units. */
+  pfirst = head_of_units_in_focus();
+  if (pfirst) {
+    struct tile *focus_tile = unit_tile(pfirst);
+
+    /* Check all units on the current focus tile. */
+    unit_list_iterate(focus_tile -> units, punit) {
+      if ((!unit_is_in_focus(punit) || accept_current)
+          && unit_owner(punit) == client.conn.playing
+          && punit->client.focus_status == FOCUS_AVAIL
+          && punit->activity == ACTIVITY_IDLE
+          && !unit_has_orders(punit)
+          && (punit->moves_left > 0 || unit_type_get(punit)->move_rate == 0)
+          && !punit->done_moving
+          && !punit->ai_controlled) {
+        return punit;
+      }
+    } unit_list_iterate_end;
+  }
+
+  /* If no eligible units on current tile, search outward from center. */
+  ptile = get_center_tile_mapcanvas();
 
   if (!get_focus_unit_on_tile(ptile)) {
-    struct unit *pfirst = head_of_units_in_focus();
-
     if (pfirst) {
       ptile = unit_tile(pfirst);
     }
