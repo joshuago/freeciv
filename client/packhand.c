@@ -1314,6 +1314,18 @@ void handle_begin_turn(void)
   /* Server is still considered busy until it handles also the beginning
    * of the first phase. */
 
+  /* Force flush any pending updates from the previous turn to ensure rendering
+   * consistency. This ensures all tile/unit updates that were queued during
+   * the turn transition are properly applied before we start the new turn. */
+  unqueue_mapview_updates(TRUE);
+
+  /* Clear any pending animations from the previous turn. These animations may
+   * have been queued during turn processing (e.g., unit movements) but should
+   * not continue running into the new turn, as they represent state from the
+   * previous turn that is no longer valid. */
+  animations_free();
+  animations_init();
+
   stop_turn_change_wait();
 }
 

@@ -421,14 +421,21 @@ gboolean map_canvas_configure(GtkWidget *w, GdkEventConfigure *ev,
 gboolean map_canvas_draw(GtkWidget *w, cairo_t *cr, gpointer data)
 {
   if (can_client_change_view() && map_exists() && !mapview_is_frozen()) {
-    /* First we mark the area to be updated as dirty.  Then we unqueue
-     * any pending updates, to make sure only the most up-to-date data
-     * is written (otherwise drawing bugs happen when old data is copied
-     * to screen).  Then we draw all changed areas to the screen. */
-    update_animation();
-    unqueue_mapview_updates(FALSE);
-    cairo_set_source_surface(cr, mapview.store->surface, 0, 0);
-    cairo_paint(cr);
+    /* Don't draw during turn transitions to prevent rendering artifacts. The
+     * server_busy flag is set during handle_end_turn() until
+     * handle_begin_turn() completes. During this time, animations and updates
+     * may be in an inconsistent state.
+     */
+    if (!is_server_busy()) {
+      /* First we mark the area to be updated as dirty. Then we unqueue any
+       * pending updates, to make sure only the most up-to-date data is written
+       * (otherwise drawing bugs happen when old data is copied to screen).
+       * Then we draw all changed areas to the screen. */
+      update_animation();
+      unqueue_mapview_updates(FALSE);
+      cairo_set_source_surface(cr, mapview.store->surface, 0, 0);
+      cairo_paint(cr);
+    }
   }
   return TRUE;
 }
