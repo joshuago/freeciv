@@ -20,6 +20,7 @@
 #include "game.h"
 #include "map.h"
 #include "player.h"
+#include "terrain.h"
 #include "tile.h"
 
 /* server */
@@ -157,6 +158,13 @@ static int adv_calc_transform(const struct city *pcity,
   }
 
   if (tile_city(ptile) && terrain_has_flag(new_terrain, TER_NO_CITIES)) {
+    return -1;
+  }
+
+  /* Don't auto-transform land to ocean - it loses agricultural potential.
+   * Players can still manually order this if desired. */
+  if (terrain_type_terrain_class(old_terrain) == TC_LAND
+      && terrain_type_terrain_class(new_terrain) == TC_OCEAN) {
     return -1;
   }
 
