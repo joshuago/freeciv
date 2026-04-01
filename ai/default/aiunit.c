@@ -219,11 +219,6 @@ static bool has_defense(struct city *pcity)
 {
   struct tile *ptile = city_tile(pcity);
 
-  /* Performance optimization: skip if no units on tile */
-  if (unit_list_size(ptile->units) == 0) {
-    return FALSE;
-  }
-
   unit_list_iterate(ptile->units, punit) {
     if (is_military_unit(punit) && base_get_defense_power(punit) != 0
         && punit->hp != 0) {
@@ -370,15 +365,11 @@ static int avg_benefit(int benefit, int loss, double chance)
 **************************************************************************/
 static void reinforcements_cost_and_value(struct unit *punit,
 					  struct tile *ptile0,
-                                           int *value, int *cost)
+                                          int *value, int *cost)
 {
   *cost = 0;
   *value = 0;
   square_iterate(ptile0, 1, ptile) {
-    /* Performance optimization: skip tiles with no units */
-    if (unit_list_size(ptile->units) == 0) {
-      continue;
-    }
     unit_list_iterate(ptile->units, aunit) {
       if (aunit != punit
 	  && pplayers_allied(unit_owner(punit), unit_owner(aunit))) {
@@ -404,10 +395,6 @@ static bool is_my_turn(struct unit *punit, struct unit *pdef)
   CHECK_UNIT(punit);
 
   square_iterate(unit_tile(pdef), 1, ptile) {
-    /* Performance optimization: skip tiles with no units */
-    if (unit_list_size(ptile->units) == 0) {
-      continue;
-    }
     unit_list_iterate(ptile->units, aunit) {
       if (aunit == punit || unit_owner(aunit) != unit_owner(punit)) {
         continue;
@@ -742,24 +729,22 @@ int look_for_charge(struct ai_type *ait, struct player *pplayer,
     pcity = tile_city(ptile);
 
     /* Consider unit bodyguard. */
-    /* Performance optimization: skip tiles with no units */
-    if (unit_list_size(ptile->units) > 0) {
-      unit_list_iterate(ptile->units, buddy) {
-        struct unit_type *ptype = unit_type_get(punit);
-        struct unit_type *buddy_type = unit_type_get(buddy);
+    unit_list_iterate(ptile->units, buddy) {
+      struct unit_type *ptype = unit_type_get(punit);
+      struct unit_type *buddy_type = unit_type_get(buddy);
 
-        /* TODO: allied unit bodyguard? */
-        if (!dai_can_unit_type_follow_unit_type(ptype, buddy_type, ait)
-            || unit_owner(buddy) != pplayer
-            || !aiguard_wanted(ait, buddy)
-            || unit_move_rate(buddy) > unit_move_rate(punit)
-            || DEFENSE_POWER(buddy_type) >= DEFENSE_POWER(ptype)
-            || (is_military_unit(buddy)
-                && 0 == get_transporter_capacity(buddy)
-                && ATTACK_POWER(buddy_type) <= ATTACK_POWER(ptype))) {
+      /* TODO: allied unit bodyguard? */
+      if (!dai_can_unit_type_follow_unit_type(ptype, buddy_type, ait)
+          || unit_owner(buddy) != pplayer
+          || !aiguard_wanted(ait, buddy)
+          || unit_move_rate(buddy) > unit_move_rate(punit)
+          || DEFENSE_POWER(buddy_type) >= DEFENSE_POWER(ptype)
+          || (is_military_unit(buddy)
+              && 0 == get_transporter_capacity(buddy)
+              && ATTACK_POWER(buddy_type) <= ATTACK_POWER(ptype))) {
 
-          continue;
-        }
+        continue;
+      }
 
       def = (toughness - adv_unit_def_rating_basic_sq(buddy));
       if (0 >= def) {
@@ -772,13 +757,12 @@ int look_for_charge(struct ai_type *ait, struct player *pplayer,
          * to hillarious flip-flops. */
         def >>= move_cost / (2 * unit_move_rate(punit));
       }
-        if (def > best_def) {
-          *aunit = buddy;
-          *acity = NULL;
-          best_def = def;
-        }
-      } unit_list_iterate_end;
-    } /* unit_list_size check */
+      if (def > best_def) {
+        *aunit = buddy;
+        *acity = NULL;
+        best_def = def;
+      }
+    } unit_list_iterate_end;
 
     /* City bodyguard. TODO: allied city bodyguard? */
     if (ai_fuzzy(pplayer, TRUE)
@@ -1349,14 +1333,6 @@ int find_something_to_kill(struct ai_type *ait, struct player *pplayer,
         continue;
       }
 
-      /* Performance optimization: check map distance before expensive
-       * pathfinding. Since targets > 10 turns are rejected anyway, we can
-       * skip pathfinding for obviously distant targets. real_map_distance
-       * is a lower bound on actual movement cost. */
-      if (real_map_distance(punit_tile, atile) > max_move_cost) {
-        continue;
-      }
-
       if (pf_map_position(punit_map, atile, &pos)) {
         go_by_boat = FALSE;
         move_time = pos.turn;
@@ -1562,13 +1538,6 @@ int find_something_to_kill(struct ai_type *ait, struct player *pplayer,
       if (!can_unit_attack_tile(punit, atile)
           || aunit != get_defender(punit, atile)) {
         /* We cannot attack it, or it is not the main defender. */
-        continue;
-      }
-
-      /* Performance optimization: check map distance before expensive
-       * pathfinding. Since targets > 10 turns are rejected anyway, we can
-       * skip pathfinding for obviously distant targets. */
-      if (real_map_distance(punit_tile, atile) > max_move_cost) {
         continue;
       }
 
@@ -2903,10 +2872,6 @@ static void dai_manage_barbarian_leader(struct ai_type *ait,
 
     /* Find the closest body guard. FIXME: maybe choose the strongest too? */
     pf_map_tiles_iterate(pfm, ptile, FALSE) {
-      /* Performance optimization: skip tiles with no units */
-      if (unit_list_size(ptile->units) == 0) {
-        continue;
-      }
       unit_list_iterate(ptile->units, punit) {
         if (unit_owner(punit) == pplayer
             && !unit_has_type_role(punit, L_BARBARIAN_LEADER)
