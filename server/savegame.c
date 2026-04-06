@@ -93,6 +93,30 @@
 
 #define log_worker      log_verbose
 
+/* Static buffers for savegame loading to avoid repeated allocations */
+static int *known_buffer = NULL;
+static size_t known_buffer_capacity = 0;
+static int *worked_tiles_buffer = NULL;
+static size_t worked_tiles_buffer_capacity = 0;
+
+/* Ensure known_buffer has at least needed capacity */
+static void ensure_known_buffer_capacity(size_t needed)
+{
+  if (known_buffer_capacity < needed) {
+    known_buffer = fc_realloc(known_buffer, needed * sizeof(int));
+    known_buffer_capacity = needed;
+  }
+}
+
+/* Ensure worked_tiles_buffer has at least needed capacity */
+static void ensure_worked_tiles_buffer_capacity(size_t needed)
+{
+  if (worked_tiles_buffer_capacity < needed) {
+    worked_tiles_buffer = fc_realloc(worked_tiles_buffer, needed * sizeof(int));
+    worked_tiles_buffer_capacity = needed;
+  }
+}
+
 /*
  * This loops over the entire map to save data. It collects all the data of
  * a line using GET_XY_CHAR and then executes the macro SECFILE_INSERT_LINE.
@@ -1089,7 +1113,9 @@ static void map_load_known(struct section_file *file,
                            const char *savefile_options)
 {
   if (secfile_lookup_bool_default(file, TRUE, "game.save_known")) {
-    int *known = fc_calloc(MAP_INDEX_SIZE, sizeof(int));
+    ensure_known_buffer_capacity(MAP_INDEX_SIZE);
+    int *known = known_buffer;
+    memset(known, 0, MAP_INDEX_SIZE * sizeof(int));
 
     /* get 4-bit segments of the first half of the 32-bit "known" field */
     LOAD_MAP_DATA(ch, nat_y, ptile,
@@ -1134,7 +1160,7 @@ static void map_load_known(struct section_file *file,
         }
       } players_iterate_end;
     } whole_map_iterate_end;
-    FC_FREE(known);
+    /* known points to static buffer, not freed */
   }
 
   game.map.server.have_resources = TRUE;
@@ -2209,9 +2235,9 @@ static bool player_load_city_tile_S22(int plrno, int i, struct city *pcity,
 #undef S_TILE_UNKNOWN
 
 /****************************************************************************
-  Load map of tiles worked by cities. The return pointer has to be freed by
-  the caller.
-****************************************************************************/
+  Load map of tiles worked by cities. Returns a pointer to a static buffer
+  that persists between savegame loads; do NOT free the returned pointer.
+ ****************************************************************************/
 static int *player_load_cities_worked_map(struct section_file *file,
                                           const char *savefile_options)
 {
@@ -2222,7 +2248,8 @@ static int *player_load_cities_worked_map(struct section_file *file,
     return NULL;
   }
 
-  worked_tiles = fc_malloc(MAP_INDEX_SIZE * sizeof(*worked_tiles));
+  ensure_worked_tiles_buffer_capacity(MAP_INDEX_SIZE);
+  worked_tiles = worked_tiles_buffer;
 
   for (y = 0; y < game.map.ysize; y++) {
     const char *buffer = secfile_lookup_str(file, "map.worked%03d", y);
@@ -4078,8 +4105,8 @@ static void game_load_internal(struct section_file *file)
 
     } players_iterate_end;
 
-    /* Free worked tiles map */
-    if (worked_tiles != NULL) {
+    /* Free worked tiles map if it was dynamically allocated (not the static buffer) */
+    if (worked_tiles != NULL && worked_tiles != worked_tiles_buffer) {
 #ifdef DEBUG
       /* check the entire map for unused worked tiles */
       whole_map_iterate(ptile) {

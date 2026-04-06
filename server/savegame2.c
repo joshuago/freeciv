@@ -304,6 +304,41 @@ struct savedata {
 
 #define log_worker      log_verbose
 
+/* Static buffers for savegame loading to avoid repeated allocations */
+static int *worked_tiles_buffer = NULL;
+static size_t worked_tiles_buffer_capacity = 0;
+static unsigned int *known_buffer = NULL;
+static size_t known_buffer_capacity = 0;
+static char *quote_buffer = NULL;
+static size_t quote_buffer_capacity = 0;
+
+/* Ensure worked_tiles_buffer has at least needed capacity */
+static void ensure_worked_tiles_buffer_capacity(size_t needed)
+{
+  if (worked_tiles_buffer_capacity < needed) {
+    worked_tiles_buffer = fc_realloc(worked_tiles_buffer, needed * sizeof(int));
+    worked_tiles_buffer_capacity = needed;
+  }
+}
+
+/* Ensure known_buffer has at least needed capacity */
+static void ensure_known_buffer_capacity(size_t needed)
+{
+  if (known_buffer_capacity < needed) {
+    known_buffer = fc_realloc(known_buffer, needed * sizeof(unsigned int));
+    known_buffer_capacity = needed;
+  }
+}
+
+/* Ensure quote_buffer has at least needed capacity */
+static void ensure_quote_buffer_capacity(size_t needed)
+{
+  if (quote_buffer_capacity < needed) {
+    quote_buffer = fc_realloc(quote_buffer, needed);
+    quote_buffer_capacity = needed;
+  }
+}
+
 static const char savefile_options_default[] =
   " +version2";
 /* The following savefile option are added if needed:
@@ -748,7 +783,9 @@ static void loaddata_destroy(struct loaddata *loading)
     free(loading->ds_t.order);
   }
 
-  if (loading->worked_tiles != NULL) {
+  /* worked_tiles points to a static buffer if loaded via sg_load_map_worked();
+   * only free if it was dynamically allocated (e.g., legacy path). */
+  if (loading->worked_tiles != NULL && loading->worked_tiles != worked_tiles_buffer) {
     free(loading->worked_tiles);
   }
 
@@ -995,7 +1032,9 @@ static enum unit_activity char2activity(char activity)
 ****************************************************************************/
 static char *quote_block(const void *const data, int length)
 {
-  char *buffer = fc_malloc(length * 3 + 10);
+  size_t needed = length * 3 + 10;
+  ensure_quote_buffer_capacity(needed);
+  char *buffer = quote_buffer;
   size_t offset;
   int i;
 
@@ -3498,8 +3537,8 @@ static void sg_load_map_worked(struct loaddata *loading)
   sg_failure_ret(loading->worked_tiles == NULL,
                  "City worked map not loaded!");
 
-  loading->worked_tiles = fc_malloc(MAP_INDEX_SIZE *
-                                    sizeof(*loading->worked_tiles));
+  ensure_worked_tiles_buffer_capacity(MAP_INDEX_SIZE);
+  loading->worked_tiles = worked_tiles_buffer;
 
   for (y = 0; y < game.map.ysize; y++) {
     const char *buffer = secfile_lookup_str(loading->file, "map.worked%04d",
@@ -3586,7 +3625,10 @@ static void sg_load_map_known(struct loaddata *loading)
                                   "game.save_known")) {
     int lines = player_slot_max_used_number() / 32 + 1;
     int j, p, l, i;
-    unsigned int *known = fc_calloc(lines * MAP_INDEX_SIZE, sizeof(*known));
+    size_t needed = lines * MAP_INDEX_SIZE;
+    ensure_known_buffer_capacity(needed);
+    unsigned int *known = known_buffer;
+    memset(known, 0, needed * sizeof(*known));
 
     for (l = 0; l < lines; l++) {
       for (j = 0; j < 8; j++) {
@@ -3621,7 +3663,7 @@ static void sg_load_map_known(struct loaddata *loading)
       } players_iterate_end;
     } whole_map_iterate_end;
 
-    FC_FREE(known);
+    /* known points to static buffer, not freed */
   }
 }
 
@@ -3643,7 +3685,10 @@ static void sg_save_map_known(struct savedata *saving)
                         "game.save_known");
     if (game.server.save_options.save_known) {
       int j, p, l, i;
-      unsigned int *known = fc_calloc(lines * MAP_INDEX_SIZE, sizeof(*known));
+      size_t needed = lines * MAP_INDEX_SIZE;
+      ensure_known_buffer_capacity(needed);
+      unsigned int *known = known_buffer;
+      memset(known, 0, needed * sizeof(*known));
 
       /* HACK: we convert the data into a 32-bit integer, and then save it as
        * hex. */
@@ -3675,7 +3720,7 @@ static void sg_save_map_known(struct savedata *saving)
         }
       }
 
-      FC_FREE(known);
+    /* known points to static buffer, not freed */
     }
   }
 }
@@ -6471,7 +6516,8 @@ static void sg_load_player_attributes(struct loaddata *loading,
                            "player%d.attribute_v2_block_parts", plrno),
         "%s", secfile_error());
 
-    quoted = fc_malloc(quoted_length + 1);
+    ensure_quote_buffer_capacity(quoted_length + 1);
+    quoted = quote_buffer;
     quoted[0] = '\0';
     plr->attribute_block.data = fc_malloc(plr->attribute_block.length);
     for (part_nr = 0; part_nr < parts; part_nr++) {
@@ -6500,7 +6546,7 @@ static void sg_load_player_attributes(struct loaddata *loading,
                       plr->attribute_block.data,
                       plr->attribute_block.length);
     fc_assert(actual_length == plr->attribute_block.length);
-    free(quoted);
+    if (quoted != quote_buffer) free(quoted);
   }
 }
 
@@ -6581,7 +6627,7 @@ static void sg_save_player_attributes(struct savedata *saving,
       quoted_at = &quoted_at[size_of_current_part];
     }
     fc_assert(bytes_left == 0);
-    free(quoted);
+    if (quoted != quote_buffer) free(quoted);
   }
 #undef PART_ADJUST
 #undef PART_SIZE
