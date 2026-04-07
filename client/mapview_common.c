@@ -285,6 +285,9 @@ static bool battle_animation(struct animation *anim, double time_gone)
   step = time_gone / time_per_step;
 
   if (tile_to_canvas_pos(&canvas_x, &canvas_y, anim->battle.loser_tile)) {
+    /* Restore loser tile area before drawing */
+    update_map_canvas(canvas_x, canvas_y, anim->width, anim->height);
+
     anim->battle.virt_loser->hp
       = anim->battle.loser_hp_start - ((anim->battle.loser_hp_start
                                         - anim->battle.loser_hp_end)
@@ -298,15 +301,21 @@ static bool battle_animation(struct animation *anim, double time_gone)
     put_unit(anim->battle.virt_loser, mapview.store, map_zoom,
              canvas_x, canvas_y);
     dirty_rect(canvas_x, canvas_y,
-               tileset_tile_width(tileset),
-               tileset_tile_height(tileset));
+               tileset_unit_width(tileset) * map_zoom,
+               tileset_unit_height(tileset) * map_zoom);
   }
 
   if (tile_to_canvas_pos(&canvas_x, &canvas_y, anim->battle.winner_tile)) {
+    /* Store tile origin for restoration and cleanup */
+    float orig_x = canvas_x, orig_y = canvas_y;
+    
+    /* Restore winner tile area before drawing */
+    update_map_canvas(orig_x, orig_y, anim->width, anim->height);
+
     anim->battle.virt_winner->hp
       = anim->battle.winner_hp_start - ((anim->battle.winner_hp_start
-                                         - anim->battle.winner_hp_end)
-                                        * step / anim->battle.steps);
+                                          - anim->battle.winner_hp_end)
+                                         * step / anim->battle.steps);
 
     if (tileset_is_isometric(tileset) && tileset_hex_height(tileset) == 0) {
       canvas_y -= tileset_tile_height(tileset) / 2 * map_zoom;
@@ -315,8 +324,12 @@ static bool battle_animation(struct animation *anim, double time_gone)
     put_unit(anim->battle.virt_winner, mapview.store, map_zoom,
              canvas_x, canvas_y);
     dirty_rect(canvas_x, canvas_y,
-               tileset_tile_width(tileset),
-               tileset_tile_height(tileset));
+               tileset_unit_width(tileset) * map_zoom,
+               tileset_unit_height(tileset) * map_zoom);
+    
+    /* Update stored position for cleanup (winner tile origin) */
+    anim->old_x = orig_x;
+    anim->old_y = orig_y;
   }
 
   return FALSE;
@@ -2572,7 +2585,7 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
     }
 
     anim->type = ANIM_BATTLE;
-    anim->id = -1;
+    anim->id = winning_unit->id;
     anim->battle.virt_loser = unit_virtual_create(unit_owner(losing_unit),
                                                   NULL, unit_type_get(losing_unit),
                                                   losing_unit->veteran);
