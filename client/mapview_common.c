@@ -375,8 +375,7 @@ static bool explosion_animation(struct animation *anim, double time_gone)
                            canvas_y + tileset_tile_height(tileset) / 2 * map_zoom
                            - h / 2,
                            spr);
-    dirty_rect(canvas_x, canvas_y, tileset_tile_width(tileset) * map_zoom,
-               tileset_tile_height(tileset) * map_zoom);
+    dirty_rect(canvas_x, canvas_y, anim->width, anim->height);
 
     anim->old_x = canvas_x;
     anim->old_y = canvas_y;
@@ -2627,8 +2626,10 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
       anim->expl.tile = losing_unit->tile;
       anim->expl.sprites = get_unit_explode_animation(tileset);
       anim->expl.sprite_count = sprite_vector_size(anim->expl.sprites);
-      anim->width = tw;
-      anim->height = th;
+      /* Use unit size for explosion dirty region to fully cover HP bar
+       * remnant on destroyed units (see battle_animation). */
+      anim->width = tuw;
+      anim->height = tuh;
       animation_add(anim);
     }
   } else {
