@@ -2629,7 +2629,7 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
       anim = fc_malloc(sizeof(struct animation));
       anim->type = ANIM_EXPL;
       anim->id = winning_unit->id;
-      anim->id2 = -1;
+      anim->id2 = losing_unit->id;  /* Suppress real loser during explosion (fixes 2nd unit in stack) */
       anim->expl.tile = losing_unit->tile;
       anim->expl.sprites = get_unit_explode_animation(tileset);
       anim->expl.sprite_count = sprite_vector_size(anim->expl.sprites);
