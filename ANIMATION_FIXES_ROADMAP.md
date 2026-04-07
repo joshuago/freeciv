@@ -72,28 +72,37 @@ Visual artifacts (outdated map regions) occur during battle animations and unit 
 
 **Expected Outcome**: 70-80% artifact reduction, negligible performance impact.
 
-**Implementation Status (2026-04-06)**:
+**Implementation Status (2026-04-07)**:
 - ✅ **1.1 Battle animation canvas restoration**: Added `update_map_canvas()` calls before drawing virtual units, stores tile origin for cleanup
 - ✅ **1.2 Canvas surface synchronization**: Added `cairo_surface_flush(src->surface)` and `cairo_surface_mark_dirty(dest->surface)` in `canvas_copy()`
-- ✅ **1.3 Valid animation ID**: Changed `anim->id = -1` to `anim->id = winning_unit->id` for proper unit suppression
-- ✅ **2.1 Unit dimensions for dirty rectangles**: Updated `dirty_rect()` calls to use `tileset_unit_width/height * map_zoom`
+- ✅ **1.3 Valid animation ID**: Initial Phase 1 change switched battle suppression from `-1` to the winning unit ID
+- ✅ **2.1 Unit dimensions for battle redraw bounds**: Battle animation now uses unit-sized regions for redraw, restoration, and cleanup rather than only tile-sized regions
+- ✅ **2.2 Suppress both combatants during battle animation**: Battle animations now suppress both real units while the virtual winner/loser pair is drawn
+- ✅ **2.3 Track cleanup for both battle participants**: Battle animations now remember and restore both affected map regions on completion
+- ✅ **2.4 Reentrant-safe `unqueue_mapview_updates()`**: Nested update requests are drained in batches without dropping newly queued work
 
 ### Phase 2: Secondary Improvements (Moderate Impact, Low Risk)
 **Goal**: Fix overlapping sprite issues and improve dirty region handling
 
-**2.1 Use Unit Dimensions for Dirty Rectangles in Animations**
-- Update `dirty_rect()` calls in `battle_animation()` and `movement_animation()`
-- Use `tileset_unit_width/height` instead of `tileset_tile_width/height`
-- **Tradeoff**: Larger dirty regions → slightly more redraw work. Fixes overlap artifacts.
+**2.1 Use Unit Dimensions for Battle Animation Bounds**
+- Update battle animation redraw, restoration, and cleanup bounds to use `tileset_unit_width/height`
+- `dirty_rect()` alone is not enough; `update_map_canvas()` and final cleanup must use the same larger area
+- **Tradeoff**: Larger dirty regions → slightly more redraw work. Fixes overlap and stale HP-bar artifacts.
 
-**2.2 Add Recursion Guard to `unqueue_mapview_updates()`**
-- Add static `in_unqueue` flag to prevent reentrancy
-- Alternative: queue deferred updates for processing after current batch
-- **Tradeoff**: Prevents infinite recursion but may drop updates.
+**2.2 Suppress Both Combatants During Battle Animation**
+- Suppress both real units while the virtual battle sprites are being drawn
+- The original single-ID suppression could still let the enemy unit redraw underneath the animation
+- **Tradeoff**: Slightly broader suppression during battle frames, but avoids double-drawing and stale overlays.
 
-**2.3 Initialize `old_x/old_y` Properly for All Animation Types**
-- Ensure all animation creation paths set initial `old_x/old_y` values
-- **Tradeoff**: Minimal code changes, prevents uninitialized value issues.
+**2.3 Track Cleanup Regions for Both Battle Participants**
+- Store and restore both battle tile origins on animation completion
+- This replaces the earlier narrower idea of only initializing generic `old_x/old_y`
+- **Tradeoff**: Minimal state increase in the animation struct, but more reliable final cleanup.
+
+**2.4 Add Reentrant-Safe Batching to `unqueue_mapview_updates()`**
+- Add static `in_unqueue` guard to prevent recursive processing
+- Drain newly queued updates in a loop after the current batch instead of clearing them accidentally
+- **Tradeoff**: Slightly more control-flow complexity, but avoids dropped updates during redraw-heavy combat.
 
 **Expected Outcome**: Additional 10-15% artifact reduction, minor performance impact (2-5%).
 
@@ -156,5 +165,5 @@ Visual artifacts (outdated map regions) occur during battle animations and unit 
 - `client/control.c` - Unit movement handling
 
 ---
-*Last Updated: April 6, 2026*
-*Status: Phase 1 Implemented (2026-04-06)*
+*Last Updated: April 7, 2026*
+*Status: Phase 2 Implemented (2026-04-07)*

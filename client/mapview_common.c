@@ -120,9 +120,12 @@ struct animation
 {
   enum animation_type type;
   int id;
+  int id2;
   bool finished;
   int old_x;
   int old_y;
+  int old_x2;
+  int old_y2;
   int width;
   int height;
   union {
@@ -216,6 +219,9 @@ static void animation_add(struct animation *anim)
 
   anim->finished = FALSE;
   anim->old_x = -1; /* Initial frame */
+  anim->old_y = -1;
+  anim->old_x2 = -1;
+  anim->old_y2 = -1;
   animation_list_append(animations, anim);
 }
 
@@ -285,8 +291,10 @@ static bool battle_animation(struct animation *anim, double time_gone)
   step = time_gone / time_per_step;
 
   if (tile_to_canvas_pos(&canvas_x, &canvas_y, anim->battle.loser_tile)) {
+    float orig_x = canvas_x, orig_y = canvas_y;
+
     /* Restore loser tile area before drawing */
-    update_map_canvas(canvas_x, canvas_y, anim->width, anim->height);
+    update_map_canvas(orig_x, orig_y, anim->width, anim->height);
 
     anim->battle.virt_loser->hp
       = anim->battle.loser_hp_start - ((anim->battle.loser_hp_start
@@ -300,15 +308,14 @@ static bool battle_animation(struct animation *anim, double time_gone)
 
     put_unit(anim->battle.virt_loser, mapview.store, map_zoom,
              canvas_x, canvas_y);
-    dirty_rect(canvas_x, canvas_y,
-               tileset_unit_width(tileset) * map_zoom,
-               tileset_unit_height(tileset) * map_zoom);
+    dirty_rect(canvas_x, canvas_y, anim->width, anim->height);
+    anim->old_x = orig_x;
+    anim->old_y = orig_y;
   }
 
   if (tile_to_canvas_pos(&canvas_x, &canvas_y, anim->battle.winner_tile)) {
-    /* Store tile origin for restoration and cleanup */
     float orig_x = canvas_x, orig_y = canvas_y;
-    
+
     /* Restore winner tile area before drawing */
     update_map_canvas(orig_x, orig_y, anim->width, anim->height);
 
@@ -323,13 +330,9 @@ static bool battle_animation(struct animation *anim, double time_gone)
     }
     put_unit(anim->battle.virt_winner, mapview.store, map_zoom,
              canvas_x, canvas_y);
-    dirty_rect(canvas_x, canvas_y,
-               tileset_unit_width(tileset) * map_zoom,
-               tileset_unit_height(tileset) * map_zoom);
-    
-    /* Update stored position for cleanup (winner tile origin) */
-    anim->old_x = orig_x;
-    anim->old_y = orig_y;
+    dirty_rect(canvas_x, canvas_y, anim->width, anim->height);
+    anim->old_x2 = orig_x;
+    anim->old_y2 = orig_y;
   }
 
   return FALSE;
@@ -438,8 +441,14 @@ void update_animation(void)
       /* Animation over */
 
       anim->id = -1;
+      anim->id2 = -1;
       if (anim->old_x >= 0) {
         update_map_canvas(anim->old_x, anim->old_y, anim->width, anim->height);
+      }
+      if (anim->old_x2 >= 0
+          && (anim->old_x2 != anim->old_x || anim->old_y2 != anim->old_y)) {
+        update_map_canvas(anim->old_x2, anim->old_y2,
+                          anim->width, anim->height);
       }
       animation_list_remove(animations, anim);
       free(anim);
@@ -1524,6 +1533,7 @@ void put_nuke_mushroom_pixmaps(struct tile *ptile)
 
     anim->type = ANIM_NUKE;
     anim->id = -1;
+    anim->id2 = -1;
     anim->nuke.shown = FALSE;
     anim->nuke.nuke_tile = ptile;
 
@@ -1576,7 +1586,7 @@ static void put_one_tile(struct canvas *pcanvas, enum mapview_layer layer,
     }
 
     if (anim != NULL && punit != NULL
-        && punit->id == anim->id) {
+        && (punit->id == anim->id || punit->id == anim->id2)) {
       punit = NULL;
     }
 
@@ -2571,8 +2581,10 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
     struct unit *winning_unit;
     int winner_end_hp;
     int loser_end_hp;
-    int aw = tileset_tile_width(tileset) * map_zoom;
-    int ah = tileset_tile_height(tileset) * map_zoom;
+    int tuw = tileset_unit_width(tileset) * map_zoom;
+    int tuh = tileset_unit_height(tileset) * map_zoom;
+    int tw = tileset_tile_width(tileset) * map_zoom;
+    int th = tileset_tile_height(tileset) * map_zoom;
 
     if (losing_unit == punit1) {
       winning_unit = punit0;
@@ -2586,6 +2598,7 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
 
     anim->type = ANIM_BATTLE;
     anim->id = winning_unit->id;
+    anim->id2 = losing_unit->id;
     anim->battle.virt_loser = unit_virtual_create(unit_owner(losing_unit),
                                                   NULL, unit_type_get(losing_unit),
                                                   losing_unit->veteran);
@@ -2602,19 +2615,20 @@ void decrease_unit_hp_smooth(struct unit *punit0, int hp0,
     anim->battle.winner_hp_end = winner_end_hp;
     anim->battle.steps = MAX(losing_unit->hp,
                              anim->battle.winner_hp_start - winner_end_hp);
-    anim->width = aw;
-    anim->height = ah;
+    anim->width = tuw;
+    anim->height = tuh;
     animation_add(anim);
 
     if (loser_end_hp <= 0) {
       anim = fc_malloc(sizeof(struct animation));
       anim->type = ANIM_EXPL;
       anim->id = winning_unit->id;
+      anim->id2 = -1;
       anim->expl.tile = losing_unit->tile;
       anim->expl.sprites = get_unit_explode_animation(tileset);
       anim->expl.sprite_count = sprite_vector_size(anim->expl.sprites);
-      anim->width = aw;
-      anim->height = ah;
+      anim->width = tw;
+      anim->height = th;
       animation_add(anim);
     }
   } else {
@@ -2745,6 +2759,7 @@ void move_unit_map_canvas(struct unit *punit,
 
       anim->type = ANIM_MOVEMENT;
       anim->id = punit->id;
+      anim->id2 = -1;
       anim->movement.mover = unit_virtual_create(unit_owner(punit),
                                                  NULL, unit_type_get(punit),
                                                  punit->veteran);
@@ -3006,6 +3021,7 @@ void get_city_mapview_trade_routes(struct city *pcity,
 /***************************************************************************/
 static enum update_type needed_updates = UPDATE_NONE;
 static bool callback_queued = FALSE;
+static bool in_unqueue = FALSE;
 
 /* These values hold the tiles that need city, unit, or tile updates.
  * These different types of updates just tell what area need to be updated,
@@ -3118,7 +3134,6 @@ void unqueue_mapview_updates(bool write_to_screen)
     {-(max_label_width - W) / 2, H, max_label_width, max_label_height}
   };
   struct tile_list *my_tile_updates[TILE_UPDATE_COUNT];
-
   int i;
 
   if (!can_client_change_view()) {
@@ -3127,71 +3142,83 @@ void unqueue_mapview_updates(bool write_to_screen)
     return;
   }
 
-  log_debug("unqueue_mapview_update: needed_updates=%d",
-            needed_updates);
-
-  /* This code "pops" the lists of tile updates off of the static array and
-   * stores them locally.  This allows further updates to be queued within
-   * the function itself (namely, within update_map_canvas). */
-  for (i = 0; i < TILE_UPDATE_COUNT; i++) {
-    my_tile_updates[i] = tile_updates[i];
-    tile_updates[i] = NULL;
+  if (in_unqueue) {
+    return;
   }
 
-  if (map_exists()) {
-    if ((needed_updates & UPDATE_MAP_CANVAS_VISIBLE)
-	|| (needed_updates & UPDATE_CITY_DESCRIPTIONS)
-        || (needed_updates & UPDATE_TILE_LABELS)) {
-      dirty_all();
-      update_map_canvas(0, 0, mapview.store_width,
-			mapview.store_height);
-      /* Have to update the overview too, since some tiles may have changed. */
-      refresh_overview_canvas();
-    } else {
-      int min_x = mapview.width, min_y = mapview.height;
-      int max_x = 0, max_y = 0;
+  in_unqueue = TRUE;
 
-      for (i = 0; i < TILE_UPDATE_COUNT; i++) {
-        if (my_tile_updates[i]) {
-          tile_list_iterate(my_tile_updates[i], ptile) {
-            float xl, yt;
-            int xr, yb;
+  do {
+    enum update_type my_needed_updates = needed_updates;
 
-	    (void) tile_to_canvas_pos(&xl, &yt, ptile);
+    log_debug("unqueue_mapview_update: needed_updates=%d",
+              my_needed_updates);
 
-	    xl += area[i].dx;
-	    yt += area[i].dy;
-	    xr = xl + area[i].w;
-	    yb = yt + area[i].h;
+    /* This code "pops" the lists of tile updates off of the static array and
+     * stores them locally. New updates queued while processing accumulate in
+     * the global arrays and are handled by the next loop iteration. */
+    for (i = 0; i < TILE_UPDATE_COUNT; i++) {
+      my_tile_updates[i] = tile_updates[i];
+      tile_updates[i] = NULL;
+    }
+    needed_updates = UPDATE_NONE;
 
-	    if (xr > 0 && xl < mapview.width
-		&& yb > 0 && yt < mapview.height) {
-	      min_x = MIN(min_x, xl);
-	      min_y = MIN(min_y, yt);
-	      max_x = MAX(max_x, xr);
-	      max_y = MAX(max_y, yb);
-	    }
+    if (map_exists()) {
+      if ((my_needed_updates & UPDATE_MAP_CANVAS_VISIBLE)
+	  || (my_needed_updates & UPDATE_CITY_DESCRIPTIONS)
+          || (my_needed_updates & UPDATE_TILE_LABELS)) {
+        dirty_all();
+        update_map_canvas(0, 0, mapview.store_width,
+			  mapview.store_height);
+        /* Have to update the overview too, since some tiles may have changed. */
+        refresh_overview_canvas();
+      } else {
+        int min_x = mapview.width, min_y = mapview.height;
+        int max_x = 0, max_y = 0;
 
-	    /* FIXME: These overview updates should be batched as well.
-	     * Right now they account for as much as 90% of the runtime of
-	     * the unqueue. */
-	    overview_update_tile(ptile);
-	  } tile_list_iterate_end;
+        for (i = 0; i < TILE_UPDATE_COUNT; i++) {
+          if (my_tile_updates[i]) {
+            tile_list_iterate(my_tile_updates[i], ptile) {
+              float xl, yt;
+              int xr, yb;
+
+	      (void) tile_to_canvas_pos(&xl, &yt, ptile);
+
+	      xl += area[i].dx;
+	      yt += area[i].dy;
+	      xr = xl + area[i].w;
+	      yb = yt + area[i].h;
+
+	      if (xr > 0 && xl < mapview.width
+		  && yb > 0 && yt < mapview.height) {
+	        min_x = MIN(min_x, xl);
+	        min_y = MIN(min_y, yt);
+	        max_x = MAX(max_x, xr);
+	        max_y = MAX(max_y, yb);
+	      }
+
+	      /* FIXME: These overview updates should be batched as well.
+	       * Right now they account for as much as 90% of the runtime of
+	       * the unqueue. */
+	      overview_update_tile(ptile);
+	    } tile_list_iterate_end;
+	  }
+        }
+
+        if (min_x < max_x && min_y < max_y) {
+	  update_map_canvas(min_x, min_y, max_x - min_x, max_y - min_y);
 	}
       }
+    }
 
-      if (min_x < max_x && min_y < max_y) {
-	update_map_canvas(min_x, min_y, max_x - min_x, max_y - min_y);
+    for (i = 0; i < TILE_UPDATE_COUNT; i++) {
+      if (my_tile_updates[i]) {
+        tile_list_destroy(my_tile_updates[i]);
       }
     }
-  }
+  } while (needed_updates != UPDATE_NONE);
 
-  for (i = 0; i < TILE_UPDATE_COUNT; i++) {
-    if (my_tile_updates[i]) {
-      tile_list_destroy(my_tile_updates[i]);
-    }
-  }
-  needed_updates = UPDATE_NONE;
+  in_unqueue = FALSE;
 
   if (write_to_screen) {
     flush_dirty();
