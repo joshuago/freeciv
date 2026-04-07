@@ -81,6 +81,7 @@ Visual artifacts (outdated map regions) occur during battle animations and unit 
 - ✅ **2.3 Track cleanup for both battle participants**: Battle animations now remember and restore both affected map regions on completion
 - ✅ **2.4 Reentrant-safe `unqueue_mapview_updates()`**: Nested update requests are drained in batches without dropping newly queued work
 - ✅ **2.5 Explosion animation uses unit-sized dirty rects**: Changed explosion anim (used on unit death) to use unit width/height for dirty/update_map_canvas so HP bar remnants are fully cleared (previously used tile size only)
+- ✅ **2.6 Consistent post-offset draw positions in iso view**: Battle and explosion animations now compute `draw_x`/`draw_y` (including isometric unit offset) and use it uniformly for restore/dirty/cleanup. Fixes side-vs-top attack direction artifacts.
 
 ### Phase 2: Secondary Improvements (Moderate Impact, Low Risk)
 **Goal**: Fix overlapping sprite issues and improve dirty region handling

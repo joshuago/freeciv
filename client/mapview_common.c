@@ -291,48 +291,49 @@ static bool battle_animation(struct animation *anim, double time_gone)
   step = time_gone / time_per_step;
 
   if (tile_to_canvas_pos(&canvas_x, &canvas_y, anim->battle.loser_tile)) {
-    float orig_x = canvas_x, orig_y = canvas_y;
+    float draw_x = canvas_x, draw_y = canvas_y;
 
-    /* Restore loser tile area before drawing */
-    update_map_canvas(orig_x, orig_y, anim->width, anim->height);
+    if (tileset_is_isometric(tileset) && tileset_hex_height(tileset) == 0) {
+      draw_y -= tileset_tile_height(tileset) / 2 * map_zoom;
+      draw_y -= (tileset_unit_height(tileset) - tileset_full_tile_height(tileset)) * map_zoom;
+    }
+
+    /* Restore full unit area (including HP bar) before drawing virtual loser */
+    update_map_canvas(draw_x, draw_y, anim->width, anim->height);
 
     anim->battle.virt_loser->hp
       = anim->battle.loser_hp_start - ((anim->battle.loser_hp_start
                                         - anim->battle.loser_hp_end)
                                        * step / anim->battle.steps);
 
-    if (tileset_is_isometric(tileset) && tileset_hex_height(tileset) == 0) {
-      canvas_y -= tileset_tile_height(tileset) / 2 * map_zoom;
-      canvas_y -= (tileset_unit_height(tileset) - tileset_full_tile_height(tileset)) * map_zoom;
-    }
-
     put_unit(anim->battle.virt_loser, mapview.store, map_zoom,
-             canvas_x, canvas_y);
-    dirty_rect(canvas_x, canvas_y, anim->width, anim->height);
-    anim->old_x = orig_x;
-    anim->old_y = orig_y;
+             draw_x, draw_y);
+    dirty_rect(draw_x, draw_y, anim->width, anim->height);
+    anim->old_x = draw_x;
+    anim->old_y = draw_y;
   }
 
   if (tile_to_canvas_pos(&canvas_x, &canvas_y, anim->battle.winner_tile)) {
-    float orig_x = canvas_x, orig_y = canvas_y;
+    float draw_x = canvas_x, draw_y = canvas_y;
 
-    /* Restore winner tile area before drawing */
-    update_map_canvas(orig_x, orig_y, anim->width, anim->height);
+    if (tileset_is_isometric(tileset) && tileset_hex_height(tileset) == 0) {
+      draw_y -= tileset_tile_height(tileset) / 2 * map_zoom;
+      draw_y -= (tileset_unit_height(tileset) - tileset_full_tile_height(tileset)) * map_zoom;
+    }
+
+    /* Restore full unit area (including HP bar) before drawing virtual winner */
+    update_map_canvas(draw_x, draw_y, anim->width, anim->height);
 
     anim->battle.virt_winner->hp
       = anim->battle.winner_hp_start - ((anim->battle.winner_hp_start
                                           - anim->battle.winner_hp_end)
                                          * step / anim->battle.steps);
 
-    if (tileset_is_isometric(tileset) && tileset_hex_height(tileset) == 0) {
-      canvas_y -= tileset_tile_height(tileset) / 2 * map_zoom;
-      canvas_y -= (tileset_unit_height(tileset) - tileset_full_tile_height(tileset)) * map_zoom;
-    }
     put_unit(anim->battle.virt_winner, mapview.store, map_zoom,
-             canvas_x, canvas_y);
-    dirty_rect(canvas_x, canvas_y, anim->width, anim->height);
-    anim->old_x2 = orig_x;
-    anim->old_y2 = orig_y;
+             draw_x, draw_y);
+    dirty_rect(draw_x, draw_y, anim->width, anim->height);
+    anim->old_x2 = draw_x;
+    anim->old_y2 = draw_y;
   }
 
   return FALSE;
@@ -358,8 +359,14 @@ static bool explosion_animation(struct animation *anim, double time_gone)
     int frame = time_gone / time_per_frame;
     struct sprite *spr;
     int w, h;
+    float draw_x = canvas_x, draw_y = canvas_y;
 
     frame = MIN(frame, anim->expl.sprite_count - 1);
+
+    if (tileset_is_isometric(tileset) && tileset_hex_height(tileset) == 0) {
+      draw_y -= tileset_tile_height(tileset) / 2 * map_zoom;
+      draw_y -= (tileset_unit_height(tileset) - tileset_full_tile_height(tileset)) * map_zoom;
+    }
 
     if (anim->old_x >= 0) {
       update_map_canvas(anim->old_x, anim->old_y,
@@ -375,10 +382,10 @@ static bool explosion_animation(struct animation *anim, double time_gone)
                            canvas_y + tileset_tile_height(tileset) / 2 * map_zoom
                            - h / 2,
                            spr);
-    dirty_rect(canvas_x, canvas_y, anim->width, anim->height);
+    dirty_rect(draw_x, draw_y, anim->width, anim->height);
 
-    anim->old_x = canvas_x;
-    anim->old_y = canvas_y;
+    anim->old_x = draw_x;
+    anim->old_y = draw_y;
   }
 
   if (time_gone >= timing_sec) {
