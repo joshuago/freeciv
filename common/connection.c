@@ -173,7 +173,6 @@ static int write_socket_data(struct connection *pc,
 
   for (start=0; buf->ndata-start>limit;) {
     struct pollfd pfd;
-    int pollret;
 
     pfd.fd = pc->sock;
     pfd.events = POLLOUT | POLLPRI;
