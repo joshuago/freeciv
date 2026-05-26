@@ -46,16 +46,29 @@ extern "C" {
 #include <ws2tcpip.h>
 #endif
 
+#ifndef WIN32_NATIVE
+#include <poll.h>
+#else  /* WIN32_NATIVE */
+typedef unsigned long int nfds_t;
+
+struct pollfd {
+  int fd;
+  short events;
+  short revents;
+};
+
+#define POLLIN    0x001
+#define POLLPRI   0x002
+#define POLLOUT   0x004
+#define POLLERR   0x008
+#define POLLHUP   0x010
+#define POLLNVAL  0x020
+#endif /* WIN32_NATIVE */
+
 /* utility */
 #include "ioz.h"
 #include "net_types.h"
 #include "support.h"   /* bool type */
-
-#ifdef FD_ZERO
-#define FC_FD_ZERO FD_ZERO
-#else
-#define FC_FD_ZERO(p) memset((void *)(p), 0, sizeof(*(p)))
-#endif
 
 #ifdef IPV6_ADD_MEMBERSHIP
 #define FC_IPV6_ADD_MEMBERSHIP IPV6_ADD_MEMBERSHIP
@@ -84,15 +97,8 @@ union fc_sockaddr {
     TYPED_LIST_ITERATE(union fc_sockaddr, sockaddrlist, paddr)
 #define fc_sockaddr_list_iterate_end  LIST_ITERATE_END
 
-#ifdef FREECIV_MSWINDOWS
-typedef TIMEVAL fc_timeval;
-#else  /* FREECIV_MSWINDOWS */
-typedef struct timeval fc_timeval;
-#endif /* FREECIV_MSWINDOWS */
-
 int fc_connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen);
-int fc_select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-              fc_timeval *timeout);
+int fc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms);
 int fc_readsocket(int sock, void *buf, size_t size);
 int fc_writesocket(int sock, const void *buf, size_t size);
 void fc_closesocket(int sock);

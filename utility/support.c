@@ -64,6 +64,9 @@
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
+#ifndef WIN32_NATIVE
+#include <poll.h>
+#endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
@@ -562,13 +565,9 @@ void fc_usleep(unsigned long usec)
 #ifdef WIN32_NATIVE
   Sleep(usec / 1000);
 #else  /* WIN32_NATIVE */
-  fc_timeval tv;
-
-  tv.tv_sec = 0;
-  tv.tv_usec = usec;
   /* FIXME: an interrupt can cause an EINTR return here.  In that case we
-   * need to have another select call. */
-  fc_select(0, NULL, NULL, NULL, &tv);
+   * need to have another poll call. */
+  poll(NULL, 0, (usec + 999) / 1000);
 #endif /* WIN32_NATIVE */
 #endif /* GENERATING_MAC */
 #endif /* HAVE_SNOOZE */

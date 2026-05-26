@@ -43,6 +43,9 @@
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
+#ifndef WIN32_NATIVE
+#include <poll.h>
+#endif
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
 #endif
@@ -336,31 +339,20 @@ Returns:
 static int read_from_connection(struct connection *pc, bool block)
 {
   for (;;) {
-    fd_set readfs, writefs, exceptfs;
+    struct pollfd pfd;
     int socket_fd = pc->sock;
     bool have_data_for_server = (pc->used && pc->send_buffer
                                  && 0 < pc->send_buffer->ndata);
     int n;
-    fc_timeval tv;
 
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-
-    FC_FD_ZERO(&readfs);
-    FD_SET(socket_fd, &readfs);
-
-    FC_FD_ZERO(&exceptfs);
-    FD_SET(socket_fd, &exceptfs);
-
+    pfd.fd = socket_fd;
+    pfd.events = POLLIN;
     if (have_data_for_server) {
-      FC_FD_ZERO(&writefs);
-      FD_SET(socket_fd, &writefs);
-      n = fc_select(socket_fd + 1, &readfs, &writefs, &exceptfs,
-                    block ? NULL : &tv);
-    } else {
-      n = fc_select(socket_fd + 1, &readfs, NULL, &exceptfs,
-                    block ? NULL : &tv);
+      pfd.events |= POLLOUT;
     }
+    pfd.revents = 0;
+
+    n = fc_poll(&pfd, 1, block ? -1 : 0);
 
     /* the socket is neither readable, writeable nor got an
      * exception */
@@ -371,25 +363,25 @@ static int read_from_connection(struct connection *pc, bool block)
     if (n == -1) {
       if (errno == EINTR) {
         /* EINTR can happen sometimes, especially when compiling with -pg.
-         * Generally we just want to run select again. */
-        log_debug("select() returned EINTR");
+         * Generally we just want to run poll again. */
+        log_debug("poll() returned EINTR");
         continue;
       }
 
-      log_error("select() return=%d errno=%d (%s)",
+      log_error("poll() return=%d errno=%d (%s)",
                 n, errno, fc_strerror(fc_get_errno()));
       return -1;
     }
 
-    if (FD_ISSET(socket_fd, &exceptfs)) {
+    if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
       return -1;
     }
 
-    if (have_data_for_server && FD_ISSET(socket_fd, &writefs)) {
+    if (have_data_for_server && (pfd.revents & POLLOUT)) {
       flush_connection_send_buffer_all(pc);
     }
 
-    if (FD_ISSET(socket_fd, &readfs)) {
+    if (pfd.revents & POLLIN) {
       return read_socket_data(socket_fd, pc->buffer);
     }
   }

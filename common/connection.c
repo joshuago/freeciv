@@ -28,6 +28,9 @@
 /* For some platforms this must be below sys/types.h. */
 #include <sys/select.h>
 #endif
+#ifndef WIN32_NATIVE
+#include <poll.h>
+#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -169,32 +172,29 @@ static int write_socket_data(struct connection *pc,
   }
 
   for (start=0; buf->ndata-start>limit;) {
-    fd_set writefs, exceptfs;
-    fc_timeval tv;
+    struct pollfd pfd;
+    int pollret;
 
-    FC_FD_ZERO(&writefs);
-    FC_FD_ZERO(&exceptfs);
-    FD_SET(pc->sock, &writefs);
-    FD_SET(pc->sock, &exceptfs);
+    pfd.fd = pc->sock;
+    pfd.events = POLLOUT | POLLPRI;
+    pfd.revents = 0;
 
-    tv.tv_sec = 0; tv.tv_usec = 0;
-
-    if (fc_select(pc->sock+1, NULL, &writefs, &exceptfs, &tv) <= 0) {
+    if (fc_poll(&pfd, 1, 0) <= 0) {
       if (errno != EINTR) {
 	break;
       } else {
 	/* EINTR can happen sometimes, especially when compiling with -pg.
-	 * Generally we just want to run select again. */
+	 * Generally we just want to run poll again. */
 	continue;
       }
     }
 
-    if (FD_ISSET(pc->sock, &exceptfs)) {
+    if (pfd.revents & POLLPRI) {
       connection_close(pc, _("network exception"));
       return -1;
     }
 
-    if (FD_ISSET(pc->sock, &writefs)) {
+    if (pfd.revents & POLLOUT) {
       nblock=MIN(buf->ndata-start, MAX_LEN_PACKET);
       log_debug("trying to write %d limit=%d", nblock, limit);
       if((nput=fc_writesocket(pc->sock, 

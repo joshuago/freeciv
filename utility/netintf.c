@@ -51,6 +51,10 @@
 #include <windows.h>    /* GetTempPath */
 #endif
 
+#ifndef WIN32_NATIVE
+#include <poll.h>
+#endif
+
 /* utility */
 #include "fcintl.h"
 #include "log.h"
@@ -119,22 +123,83 @@ int fc_connect(int sockfd, const struct sockaddr *serv_addr, socklen_t addrlen)
 }
 
 /***************************************************************
-  Wait for a number of sockets to change status
-**************************************************************/
-int fc_select(int n, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-              fc_timeval *timeout)
+  Wait for events on a set of file descriptors.
+
+  On Unix, this wraps poll() which has no FD_SETSIZE limit.
+  On Windows, this emulates poll() via select() which uses an
+  array-based fd_set that does not corrupt memory for high fds.
+  timeout_ms < 0 means infinite wait.
+***************************************************************/
+int fc_poll(struct pollfd *fds, nfds_t nfds, int timeout_ms)
 {
-  int result;
+#ifdef WIN32_NATIVE
+  fd_set readfds, writefds, exceptfds;
+  struct timeval tv;
+  int i, ret, maxfd;
 
-  result = select(n, readfds, writefds, exceptfds, timeout);
+  FD_ZERO(&readfds);
+  FD_ZERO(&writefds);
+  FD_ZERO(&exceptfds);
+  maxfd = -1;
 
-#ifdef FREECIV_HAVE_WINSOCK
-  if (result == -1) {
+  for (i = 0; i < (int)nfds; i++) {
+    fds[i].revents = 0;
+    if (fds[i].fd < 0) {
+      continue;
+    }
+    if (fds[i].events & POLLIN) {
+      FD_SET(fds[i].fd, &readfds);
+    }
+    if (fds[i].events & POLLOUT) {
+      FD_SET(fds[i].fd, &writefds);
+    }
+    if (fds[i].events & POLLPRI) {
+      FD_SET(fds[i].fd, &exceptfds);
+    }
+    if (fds[i].fd > maxfd) {
+      maxfd = fds[i].fd;
+    }
+  }
+
+  if (maxfd == -1) {
+    if (timeout_ms < 0) {
+      return -1;
+    }
+    Sleep(timeout_ms);
+    return 0;
+  }
+
+  tv.tv_sec = timeout_ms / 1000;
+  tv.tv_usec = (timeout_ms % 1000) * 1000;
+
+  ret = select(maxfd + 1, &readfds, &writefds, &exceptfds,
+               timeout_ms >= 0 ? &tv : NULL);
+
+  if (ret == -1) {
     set_socket_errno();
   }
-#endif /* FREECIV_HAVE_WINSOCK */
 
-  return result;
+  if (ret > 0) {
+    for (i = 0; i < (int)nfds; i++) {
+      if (fds[i].fd < 0) {
+        continue;
+      }
+      if (FD_ISSET(fds[i].fd, &readfds)) {
+        fds[i].revents |= POLLIN;
+      }
+      if (FD_ISSET(fds[i].fd, &writefds)) {
+        fds[i].revents |= POLLOUT;
+      }
+      if (FD_ISSET(fds[i].fd, &exceptfds)) {
+        fds[i].revents |= POLLPRI;
+      }
+    }
+  }
+
+  return ret;
+#else  /* WIN32_NATIVE */
+  return poll(fds, nfds, timeout_ms >= 0 ? timeout_ms : -1);
+#endif /* WIN32_NATIVE */
 }
 
 /***************************************************************
