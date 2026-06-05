@@ -351,9 +351,9 @@ static void cut_lagging_connection(struct connection *pconn)
 void flush_packets(void)
 {
   int i;
-  int max_desc;
-  fd_set writefs, exceptfs;
-  fc_timeval tv;
+  struct pollfd pfds[MAX_NUM_CONNECTIONS];
+  struct connection *pconn_by_pfd[MAX_NUM_CONNECTIONS];
+  int nfds;
   time_t start;
 
   (void) time(&start);
@@ -366,12 +366,7 @@ void flush_packets(void)
       return;
     }
 
-    tv.tv_usec = 0;
-    tv.tv_sec = signsecs;
-
-    FC_FD_ZERO(&writefs);
-    FC_FD_ZERO(&exceptfs);
-    max_desc = -1;
+    nfds = 0;
 
     for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
       struct connection *pconn = &connections[i];
@@ -379,36 +374,39 @@ void flush_packets(void)
       if (pconn->used
           && !pconn->server.is_closing
           && 0 < pconn->send_buffer->ndata) {
-	FD_SET(pconn->sock, &writefs);
-	FD_SET(pconn->sock, &exceptfs);
-	max_desc = MAX(pconn->sock, max_desc);
+        pfds[nfds].fd = pconn->sock;
+        pfds[nfds].events = POLLOUT | POLLPRI;
+        pfds[nfds].revents = 0;
+        pconn_by_pfd[nfds] = pconn;
+        nfds++;
       }
     }
 
-    if (max_desc == -1) {
+    if (nfds == 0) {
       return;
     }
 
-    if (fc_select(max_desc + 1, NULL, &writefs, &exceptfs, &tv) <= 0) {
+    if (fc_poll(pfds, nfds, signsecs * 1000) <= 0) {
       return;
     }
 
-    for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {   /* check for freaky players */
-      struct connection *pconn = &connections[i];
+    for (i = 0; i < nfds; i++) {
+      struct connection *pconn = pconn_by_pfd[i];
 
-      if (pconn->used && !pconn->server.is_closing) {
-        if (FD_ISSET(pconn->sock, &exceptfs)) {
-          log_verbose("connection (%s) cut due to exception data",
-                      conn_description(pconn));
-          connection_close_server(pconn, _("network exception"));
-        } else {
-	  if(pconn->send_buffer && pconn->send_buffer->ndata > 0) {
-	    if(FD_ISSET(pconn->sock, &writefs)) {
-	      flush_connection_send_buffer_all(pconn);
-	    } else {
-	      cut_lagging_connection(pconn);
-	    }
-	  }
+      if (!pconn->used || pconn->server.is_closing) {
+        continue;
+      }
+      if (pfds[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+        log_verbose("connection (%s) cut due to exception data",
+                    conn_description(pconn));
+        connection_close_server(pconn, _("network exception"));
+      } else {
+        if (pconn->send_buffer && pconn->send_buffer->ndata > 0) {
+          if (pfds[i].revents & POLLOUT) {
+            flush_connection_send_buffer_all(pconn);
+          } else {
+            cut_lagging_connection(pconn);
+          }
         }
       }
     }
@@ -497,10 +495,9 @@ functions.  That is, other functions should not need to do so.  --dwp
 enum server_events server_sniff_all_input(void)
 {
   int i, s;
-  int max_desc;
-  bool excepting;
-  fd_set readfs, writefs, exceptfs;
-  fc_timeval tv;
+  struct pollfd *pfds;
+  int conn_to_pfd_idx[MAX_NUM_CONNECTIONS];
+  int nfds, stdin_idx, listen_start;
 #ifdef FREECIV_SOCKET_ZERO_NOT_STDIN
   char *bufptr;
 #endif
@@ -671,45 +668,70 @@ enum server_events server_sniff_all_input(void)
       return S_E_END_OF_TURN_TIMEOUT;
     }
 
-    tv.tv_sec = 1;
-    tv.tv_usec = 0;
-
-    FC_FD_ZERO(&readfs);
-    FC_FD_ZERO(&writefs);
-    FC_FD_ZERO(&exceptfs);
+    /* Build pollfd array.
+     * Layout: [stdin?] [listen_socks] [connections] */
+    nfds = 0;
+    stdin_idx = -1;
+    listen_start = -1;
 
     if (!no_input) {
 #ifdef FREECIV_SOCKET_ZERO_NOT_STDIN
       fc_init_console();
 #else /* FREECIV_SOCKET_ZERO_NOT_STDIN */
 #   if !defined(__VMS)
-      FD_SET(0, &readfs);
+      nfds++;  /* placeholder for stdin */
+      stdin_idx = 0;
 #   endif /* VMS */
 #endif /* FREECIV_SOCKET_ZERO_NOT_STDIN */
     }
 
-    max_desc = 0;
-    for (i = 0; i < listen_count; i++) {
-      FD_SET(listen_socks[i], &readfs);
-      FD_SET(listen_socks[i], &exceptfs);
-      max_desc = MAX(max_desc, listen_socks[i]);
-    }
+    listen_start = nfds;
+    nfds += listen_count;
 
     for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
       struct connection *pconn = connections + i;
 
+      conn_to_pfd_idx[i] = -1;
       if (pconn->used && !pconn->server.is_closing) {
-        FD_SET(pconn->sock, &readfs);
-        if (0 < pconn->send_buffer->ndata) {
-          FD_SET(pconn->sock, &writefs);
-        }
-        FD_SET(pconn->sock, &exceptfs);
-        max_desc = MAX(pconn->sock, max_desc);
+        conn_to_pfd_idx[i] = nfds;
+        nfds++;
       }
     }
+
+    pfds = fc_malloc(nfds * sizeof(*pfds));
+
+    if (stdin_idx >= 0) {
+      pfds[stdin_idx].fd = 0;
+      pfds[stdin_idx].events = POLLIN;
+      pfds[stdin_idx].revents = 0;
+    }
+
+    for (i = 0; i < listen_count; i++) {
+      int idx = listen_start + i;
+      pfds[idx].fd = listen_socks[i];
+      pfds[idx].events = POLLIN | POLLPRI;
+      pfds[idx].revents = 0;
+    }
+
+    for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
+      struct connection *pconn = connections + i;
+      int idx = conn_to_pfd_idx[i];
+
+      if (idx < 0) {
+        continue;
+      }
+      pfds[idx].fd = pconn->sock;
+      pfds[idx].events = POLLIN | POLLPRI;
+      if (0 < pconn->send_buffer->ndata) {
+        pfds[idx].events |= POLLOUT;
+      }
+      pfds[idx].revents = 0;
+    }
+
     con_prompt_off();		/* output doesn't generate a new prompt */
 
-    selret = fc_select(max_desc + 1, &readfs, &writefs, &exceptfs, &tv);
+    selret = fc_poll(pfds, nfds, 1000);
+
     if (selret == 0) {
       /* timeout */
       call_ai_refresh();
@@ -720,6 +742,7 @@ enum server_events server_sniff_all_input(void)
 	  && game.server.phase_timer
 	  && (timer_read_seconds(game.server.phase_timer)
 	      > game.tinfo.seconds_to_phasedone)) {
+	FC_FREE(pfds);
 	con_prompt_off();
 	return S_E_END_OF_TURN_TIMEOUT;
       }
@@ -750,155 +773,190 @@ enum server_events server_sniff_all_input(void)
 	  if (!$VMS_STATUS_SUCCESS(status)) {
 	    lib$stop(status);
 	  }
-	  if (ttchar.numchars) {
-	    FD_SET(0, &readfs);
-	  } else {
+	  if (!ttchar.numchars) {
+	    FC_FREE(pfds);
 	    continue;
 	  }
+          /* VMS has stdin data: force stdin ready before dispatch */
+          if (stdin_idx >= 0) {
+            pfds[stdin_idx].revents |= POLLIN;
+          }
 	}
 #else  /* !__VMS */
 #ifndef FREECIV_SOCKET_ZERO_NOT_STDIN
+        FC_FREE(pfds);
         really_close_connections();
         continue;
 #endif /* FREECIV_SOCKET_ZERO_NOT_STDIN */
 #endif /* !__VMS */
       }
+      /* Fall through to dispatch on VMS with stdin data. */
     } else if (selret < 0) {
-      log_error("fc_select() failed: %s", fc_strerror(fc_get_errno()));
-    }
-
-    excepting = FALSE;
-    for (i = 0; i < listen_count; i++) {
-      if (FD_ISSET(listen_socks[i], &exceptfs)) {
-        excepting = TRUE;
-        break;
-      }
-    }
-    if (excepting) {                  /* handle Ctrl-Z suspend/resume */
+      FC_FREE(pfds);
+      log_error("fc_poll() failed: %s", fc_strerror(fc_get_errno()));
       continue;
     }
-    for (i = 0; i < listen_count; i++) {
-      s = listen_socks[i];
-      if (FD_ISSET(s, &readfs)) {     /* new players connects */
-        log_verbose("got new connection");
-        if (-1 == server_accept_connection(s)) {
-          /* There will be a log_error() message from
-           * server_accept_connection() if something
-           * goes wrong, so no need to make another
-           * error-level message here. */
-          log_verbose("failed accepting connection");
+
+    {
+      bool stdin_ready = (stdin_idx >= 0
+                          && (pfds[stdin_idx].revents & POLLIN));
+      bool conn_read[MAX_NUM_CONNECTIONS];
+      bool conn_write[MAX_NUM_CONNECTIONS];
+      bool conn_except[MAX_NUM_CONNECTIONS];
+      bool excepting;
+
+      /* Process listen sockets before freeing pfds */
+      excepting = FALSE;
+      for (i = 0; i < listen_count; i++) {
+        int idx = listen_start + i;
+        if (pfds[idx].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+          excepting = TRUE;
         }
       }
-    }
-    for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
-      /* check for freaky players */
-      struct connection *pconn = &connections[i];
 
-      if (pconn->used
-          && !pconn->server.is_closing
-          && FD_ISSET(pconn->sock, &exceptfs)) {
-        log_verbose("connection (%s) cut due to exception data",
-                    conn_description(pconn));
-        connection_close_server(pconn, _("network exception"));
-      }
-    }
-#ifdef FREECIV_SOCKET_ZERO_NOT_STDIN
-    if (!no_input && (bufptr = fc_read_console())) {
-      char *bufptr_internal = local_to_internal_string_malloc(bufptr);
-
-      con_prompt_enter();	/* will need a new prompt, regardless */
-      handle_stdin_input(NULL, bufptr_internal);
-      free(bufptr_internal);
-    }
-#else  /* !FREECIV_SOCKET_ZERO_NOT_STDIN */
-    if (!no_input && FD_ISSET(0, &readfs)) {    /* input from server operator */
-#ifdef FREECIV_HAVE_LIBREADLINE
-      rl_callback_read_char();
-      if (readline_handled_input) {
-        readline_handled_input = FALSE;
-        con_prompt_enter_clear();
-      }
-      continue;
-#else  /* !FREECIV_HAVE_LIBREADLINE */
-      ssize_t didget;
-      char *buffer = NULL; /* Must be NULL when calling getline() */
-      char *buf_internal;
-
-#ifdef HAVE_GETLINE
-      size_t len = 0;
-
-      didget = getline(&buffer, &len, stdin);
-      if (didget >= 1) {
-        buffer[didget-1] = '\0'; /* overwrite newline character */
-        didget--;
-        log_debug("Got line: \"%s\" (%ld, %ld)", buffer,
-                  (long int) didget, (long int) len);
-      }
-#else  /* HAVE_GETLINE */
-      buffer = malloc(BUF_SIZE + 1);
-
-      didget = read(0, buffer, BUF_SIZE);
-      if (didget > 0) {
-        buffer[didget] = '\0';
-      } else {
-        didget = -1; /* error or end-of-file: closing stdin... */
-      }
-#endif /* HAVE_GETLINE */
-      if (didget < 0) {
-        handle_stdin_close();
+      if (!excepting) {
+        for (i = 0; i < listen_count; i++) {
+          int idx = listen_start + i;
+          if (pfds[idx].revents & POLLIN) {
+            s = listen_socks[i];
+            log_verbose("got new connection");
+            if (-1 == server_accept_connection(s)) {
+              log_verbose("failed accepting connection");
+            }
+          }
+        }
       }
 
-      con_prompt_enter();	/* will need a new prompt, regardless */
-
-      if (didget >= 0) {
-        buf_internal = local_to_internal_string_malloc(buffer);
-        handle_stdin_input(NULL, buf_internal);
-        free(buf_internal);
-      }
-      free(buffer);
-#endif /* !FREECIV_HAVE_LIBREADLINE */
-    } else
-#endif /* !FREECIV_SOCKET_ZERO_NOT_STDIN */
-
-    {                             /* input from a player */
       for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
-        struct connection *pconn = connections + i;
-        int nb;
-
-        if (!pconn->used
-            || pconn->server.is_closing
-            || !FD_ISSET(pconn->sock, &readfs)) {
-          continue;
-        }
-
-        nb = read_socket_data(pconn->sock, pconn->buffer);
-        if (0 <= nb) {
-          /* We read packets; now handle them. */
-          incoming_client_packets(pconn);
-        } else if (-2 == nb) {
-          connection_close_server(pconn, _("client disconnected"));
+        int idx = conn_to_pfd_idx[i];
+        if (idx >= 0) {
+          conn_read[i] = (pfds[idx].revents & POLLIN);
+          conn_write[i] = (pfds[idx].revents & POLLOUT);
+          conn_except[i] = (pfds[idx].revents
+                            & (POLLERR | POLLHUP | POLLNVAL));
         } else {
-          /* Read failure; the connection is closed. */
-          connection_close_server(pconn, _("read error"));
+          conn_read[i] = FALSE;
+          conn_write[i] = FALSE;
+          conn_except[i] = FALSE;
         }
       }
 
+      /* Close connections that got exceptions */
       for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
         struct connection *pconn = &connections[i];
 
         if (pconn->used
             && !pconn->server.is_closing
-            && pconn->send_buffer
-            && pconn->send_buffer->ndata > 0) {
-          if (FD_ISSET(pconn->sock, &writefs)) {
-            flush_connection_send_buffer_all(pconn);
-          } else {
-            cut_lagging_connection(pconn);
-          }
+            && conn_except[i]) {
+          log_verbose("connection (%s) cut due to exception data",
+                      conn_description(pconn));
+          connection_close_server(pconn, _("network exception"));
         }
       }
-      really_close_connections();
-      break;
+
+      FC_FREE(pfds);
+
+      if (excepting) {                  /* handle Ctrl-Z suspend/resume */
+        continue;
+      }
+#ifdef FREECIV_SOCKET_ZERO_NOT_STDIN
+      if (!no_input && (bufptr = fc_read_console())) {
+        char *bufptr_internal = local_to_internal_string_malloc(bufptr);
+
+        con_prompt_enter();	/* will need a new prompt, regardless */
+        handle_stdin_input(NULL, bufptr_internal);
+        free(bufptr_internal);
+      }
+#else  /* !FREECIV_SOCKET_ZERO_NOT_STDIN */
+      if (!no_input && stdin_ready) {    /* input from server operator */
+#ifdef FREECIV_HAVE_LIBREADLINE
+        rl_callback_read_char();
+        if (readline_handled_input) {
+          readline_handled_input = FALSE;
+          con_prompt_enter_clear();
+        }
+        continue;
+#else  /* !FREECIV_HAVE_LIBREADLINE */
+        ssize_t didget;
+        char *buffer = NULL; /* Must be NULL when calling getline() */
+        char *buf_internal;
+
+#ifdef HAVE_GETLINE
+        size_t len = 0;
+
+        didget = getline(&buffer, &len, stdin);
+        if (didget >= 1) {
+          buffer[didget-1] = '\0'; /* overwrite newline character */
+          didget--;
+          log_debug("Got line: \"%s\" (%ld, %ld)", buffer,
+                    (long int) didget, (long int) len);
+        }
+#else  /* HAVE_GETLINE */
+        buffer = malloc(BUF_SIZE + 1);
+
+        didget = read(0, buffer, BUF_SIZE);
+        if (didget > 0) {
+          buffer[didget] = '\0';
+        } else {
+          didget = -1; /* error or end-of-file: closing stdin... */
+        }
+#endif /* HAVE_GETLINE */
+        if (didget < 0) {
+          handle_stdin_close();
+        }
+
+        con_prompt_enter();	/* will need a new prompt, regardless */
+
+        if (didget >= 0) {
+          buf_internal = local_to_internal_string_malloc(buffer);
+          handle_stdin_input(NULL, buf_internal);
+          free(buf_internal);
+        }
+        free(buffer);
+#endif /* !FREECIV_HAVE_LIBREADLINE */
+      } else
+#endif /* !FREECIV_SOCKET_ZERO_NOT_STDIN */
+
+      {                             /* input from a player */
+        for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
+          struct connection *pconn = connections + i;
+          int nb;
+
+          if (!pconn->used
+              || pconn->server.is_closing
+              || !conn_read[i]) {
+            continue;
+          }
+
+          nb = read_socket_data(pconn->sock, pconn->buffer);
+          if (0 <= nb) {
+            /* We read packets; now handle them. */
+            incoming_client_packets(pconn);
+          } else if (-2 == nb) {
+            connection_close_server(pconn, _("client disconnected"));
+          } else {
+            /* Read failure; the connection is closed. */
+            connection_close_server(pconn, _("read error"));
+          }
+        }
+
+        for (i = 0; i < MAX_NUM_CONNECTIONS; i++) {
+          struct connection *pconn = &connections[i];
+
+          if (pconn->used
+              && !pconn->server.is_closing
+              && pconn->send_buffer
+              && pconn->send_buffer->ndata > 0) {
+            if (conn_write[i]) {
+              flush_connection_send_buffer_all(pconn);
+            } else {
+              cut_lagging_connection(pconn);
+            }
+          }
+        }
+        really_close_connections();
+        break;
+      }
     }
   }
   con_prompt_off();
@@ -1465,31 +1523,26 @@ static void get_lanserver_announcement(void)
   char msgbuf[128];
   struct data_in din;
   int type;
-  fd_set readfs, exceptfs;
-  fc_timeval tv;
+  struct pollfd pfd;
 
   if (srvarg.announce == ANNOUNCE_NONE) {
     return;
   }
 
-  FD_ZERO(&readfs);
-  FD_ZERO(&exceptfs);
-  FD_SET(socklan, &exceptfs);
-  FD_SET(socklan, &readfs);
+  pfd.fd = socklan;
+  pfd.events = POLLIN;
+  pfd.revents = 0;
 
-  tv.tv_sec = 0;
-  tv.tv_usec = 0;
-
-  while (fc_select(socklan + 1, &readfs, NULL, &exceptfs, &tv) == -1) {
+  while (fc_poll(&pfd, 1, 0) == -1) {
     if (errno != EINTR) {
-      log_error("select failed: %s", fc_strerror(fc_get_errno()));
+      log_error("poll failed: %s", fc_strerror(fc_get_errno()));
       return;
     }
     /* EINTR can happen sometimes, especially when compiling with -pg.
-     * Generally we just want to run select again. */
+     * Generally we just want to run poll again. */
   }
 
-  if (FD_ISSET(socklan, &readfs)) {
+  if (pfd.revents & POLLIN) {
     if (0 < recvfrom(socklan, msgbuf, sizeof(msgbuf), 0, NULL, NULL)) {
       dio_input_init(&din, msgbuf, 1);
       dio_get_uint8(&din, &type);
