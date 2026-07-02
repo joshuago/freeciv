@@ -18,6 +18,7 @@
 /* utility */
 #include "bitvector.h"
 #include "log.h"
+#include "rand.h"
 #include "support.h"
 
 /* common */
@@ -651,14 +652,37 @@ static void tile_mine(struct tile *ptile, struct extra_type *tgt)
 
 /****************************************************************************
   Transform (ACTIVITY_TRANSFORM) the tile.  This usually changes the tile's
-  terrain type.
+  terrain type.  If the tile had a resource, replace it with a randomly
+  chosen resource that is valid for the new terrain.
 ****************************************************************************/
 static void tile_transform(struct tile *ptile)
 {
   struct terrain *pterrain = tile_terrain(ptile);
 
   if (pterrain->transform_result != T_NONE) {
-    tile_change_terrain(ptile, pterrain->transform_result);
+    struct terrain *new_terrain = pterrain->transform_result;
+
+    tile_change_terrain(ptile, new_terrain);
+
+    /* If the tile had a resource, replace it with a randomly chosen
+     * resource that is valid for the new terrain.  If the new terrain
+     * has no resources, clear the old one. */
+    if (ptile->resource != NULL) {
+      if (new_terrain->resources != NULL && new_terrain->resources[0] != NULL) {
+        int count = 0;
+        struct resource **r;
+
+        for (r = new_terrain->resources; *r != NULL; r++) {
+          count++;
+        }
+
+        if (count > 0) {
+          tile_set_resource(ptile, new_terrain->resources[fc_rand(count)]);
+        }
+      } else {
+        tile_set_resource(ptile, NULL);
+      }
+    }
   }
 }
 
