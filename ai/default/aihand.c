@@ -555,9 +555,14 @@ static void dai_manage_taxes(struct ai_type *ait, struct player *pplayer)
                    rates[AI_RATE_LUX], rates[AI_RATE_TAX]);
         }
       } else {
-        /* A balanced tax and as much science as possible. */
+        /* A balanced tax and, if it is still useful, as much science as
+         * possible. When science is no longer wanted (e.g., only future
+         * techs remain), leave the remainder to be distributed to tax
+         * below. */
         rates[AI_RATE_TAX] = rate_tax_balance;
-        rates[AI_RATE_SCI] = MIN(maxrate, RATE_REMAINS(rates));
+        if (adv_wants_science(pplayer)) {
+          rates[AI_RATE_SCI] = MIN(maxrate, RATE_REMAINS(rates));
+        }
 
         log_base(LOGLEVEL_TAX, "%s [res] balanced tax! sci? "
                                "(Sci/Lux/Tax)>=%d/%d/%d",
