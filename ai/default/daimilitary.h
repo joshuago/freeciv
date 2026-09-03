@@ -44,4 +44,9 @@ bool dai_process_defender_want(struct ai_type *ait, struct player *pplayer,
                                struct city *pcity, unsigned int danger,
                                struct adv_choice *choice);
 
+/* Strategic deterrence: results cached in adv_data.deterrence,
+ * recomputed once per turn by dai_update_deterrence(). */
+void dai_update_deterrence(struct ai_type *ait, struct player *pplayer);
+bool dai_deterrence_vulnerable(struct ai_type *ait, struct player *pplayer);
+
 #endif  /* FC__DAIMILITARY_H */

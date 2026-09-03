@@ -2215,6 +2215,17 @@ static struct setting settings[] = {
               "have previously seen the tiles."),
            NULL, NULL, GAME_DEFAULT_FOGGEDBORDERS)
 
+  GEN_BOOL("aideterrence", game.server.aideterrence,
+           SSET_RULES, SSET_MILITARY, SSET_SITUATIONAL, SSET_TO_CLIENT,
+           N_("Whether AI maintains peacetime deterrence"),
+           N_("If enabled, AI players estimate their military power "
+              "relative to potential opponents and keep producing "
+              "defensive units and funding their upkeep in peacetime "
+              "when they would otherwise fall behind, rather than "
+              "disarming once they feel safe. Disable to get the "
+              "classic AI behavior."),
+           NULL, NULL, GAME_DEFAULT_AIDETERRENCE)
+
   GEN_BITWISE("airliftingstyle", game.info.airlifting_style,
               SSET_RULES_FLEXIBLE, SSET_MILITARY, SSET_SITUATIONAL,
               SSET_TO_CLIENT, N_("Airlifting style"),

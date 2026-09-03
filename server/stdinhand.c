@@ -572,6 +572,91 @@ static bool metaconnection_command(struct connection *caller, char *arg,
 }
 
 /**************************************************************************
+  Show the cached strategic deterrence assessment of one or all AI
+  players (see dai_update_deterrence()).
+**************************************************************************/
+static void show_deterrence_for_player(struct player *pplayer,
+                                       struct connection *caller)
+{
+  struct adv_data *adv = adv_data_get(pplayer, NULL);
+  struct adv_deterrence *det;
+
+  if (adv == NULL || adv->deterrence.turn < 0) {
+    cmd_reply(CMD_DETERRENCE, caller, C_COMMENT,
+              _("No deterrence assessment available for %s "
+                "(only AI players compute one)."),
+              player_name(pplayer));
+    return;
+  }
+
+  det = &adv->deterrence;
+
+  cmd_reply(CMD_DETERRENCE, caller, C_COMMENT,
+            _("Deterrence for %s (assessed on turn %d, setting %s):"),
+            player_name(pplayer), det->turn,
+            game.server.aideterrence ? _("on") : _("off"));
+  cmd_reply(CMD_DETERRENCE, caller, C_COMMENT,
+            _("  Military power: %.1f, deterrence need: %.1f (%s)"),
+            det->power, det->need,
+            det->vulnerable ? _("VULNERABLE") : _("SAFE"));
+
+  players_iterate_alive(aplayer) {
+    int pn = player_index(aplayer);
+
+    if (aplayer != pplayer && det->opp_threshold[pn] > 0.0f) {
+      cmd_reply(CMD_DETERRENCE, caller, C_COMMENT,
+                _("  vs %s: RPI=%.2f, need=%.1f"),
+                player_name(aplayer), det->opp_rpi[pn],
+                det->opp_threshold[pn]);
+    }
+  } players_iterate_alive_end;
+
+  if (det->threat >= 0) {
+    cmd_reply(CMD_DETERRENCE, caller, C_COMMENT,
+              _("  Main threat: %s (RPI %.2f)"),
+              player_name(player_by_number(det->threat)),
+              det->threat_rpi);
+  }
+}
+
+/**************************************************************************
+  /deterrence command handler.
+**************************************************************************/
+static bool show_deterrence_command(struct connection *caller, char *arg)
+{
+  struct player *pplayer = NULL;
+
+  if (S_S_RUNNING != server_state()) {
+    cmd_reply(CMD_DETERRENCE, caller, C_FAIL,
+              _("No game is running."));
+    return FALSE;
+  }
+
+  if (arg != NULL && strlen(arg) > 0) {
+    enum m_pre_result match_result;
+
+    pplayer = player_by_name_prefix(arg, &match_result);
+    if (pplayer == NULL) {
+      cmd_reply_no_such_player(CMD_DETERRENCE, caller, arg, match_result);
+      return FALSE;
+    }
+  }
+
+  if (pplayer == NULL) {
+    /* Show for all AI players */
+    players_iterate(aplayer) {
+      if (aplayer->ai_controlled && aplayer->is_alive) {
+        show_deterrence_for_player(aplayer, caller);
+      }
+    } players_iterate_end;
+  } else {
+    show_deterrence_for_player(pplayer, caller);
+  }
+
+  return TRUE;
+}
+
+/**************************************************************************
   Handle metapatches command.
 **************************************************************************/
 static bool metapatches_command(struct connection *caller, 
@@ -4361,6 +4446,8 @@ static bool handle_stdin_input_real(struct connection *caller, char *str,
     return show_help(caller, arg);
   case CMD_SRVID:
     return show_serverid(caller, arg);
+  case CMD_DETERRENCE:
+    return show_deterrence_command(caller, arg);
   case CMD_LIST:
     return show_list(caller, arg);
   case CMD_AITOGGLE:

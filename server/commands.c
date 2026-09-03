@@ -683,6 +683,15 @@ static struct command commands[] = {
    SYN_ORIG_("serverid"),
    N_("Simply returns the id of the server."), NULL, NULL,
    CMD_ECHO_NONE, VCF_NONE, 0
+  },
+  {"deterrence",	ALLOW_INFO,
+   /* TRANS: translate text between <> only */
+   N_("deterrence [<player-name>]"),
+   N_("Show strategic deterrence assessment of AI players."),
+   N_("Shows each AI player's estimated military power, its deterrence "
+      "need against each opponent, and whether it currently considers "
+      "itself vulnerable. Controlled by the 'aideterrence' setting."), NULL,
+   CMD_ECHO_NONE, VCF_NONE, 0
   }
 };
 
