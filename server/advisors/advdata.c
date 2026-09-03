@@ -661,6 +661,10 @@ void adv_data_init(struct player *pplayer)
 
   adv->government_want = NULL;
 
+  /* Not computed yet (fc_calloc zeroed the struct) */
+  adv->deterrence.turn = -1;
+  adv->deterrence.threat = -1;
+
   adv->dipl.adv_dipl_slots = fc_calloc(player_slot_count(),
                                        sizeof(*adv->dipl.adv_dipl_slots));
   player_slots_iterate(pslot) {

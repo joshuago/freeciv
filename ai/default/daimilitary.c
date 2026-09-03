@@ -36,6 +36,7 @@
 /* server */
 #include "citytools.h"
 #include "cityturn.h"
+#include "maphand.h"
 #include "srv_log.h"
 #include "srv_main.h"
 
@@ -47,6 +48,7 @@
 #include "infracache.h" /* adv_city */
 
 /* ai */
+#include "aitraits.h"
 #include "difficulty.h"
 #include "handicaps.h"
 
@@ -67,6 +69,9 @@
 #include "daieffects.h"
 
 #include "daimilitary.h"
+
+/* Logging for deterrence calculations */
+#define LOG_DETERRENCE LOG_DEBUG
 
 /* Size 1 city gets destroyed when conquered. It's still a good thing
  * stop enemy from having it. */
@@ -1385,6 +1390,221 @@ static void adjust_ai_unit_choice(struct city *pcity,
   }
 }
 
+/**************************************************************************
+ * Strategic Deterrence
+ *
+ * The AI estimates its own military power and compares it against a
+ * per-opponent deterrence need: how strong that opponent looks from our
+ * (intel-limited) point of view, scaled by our aggression and by how
+ * much we distrust them. If our power falls below the highest need, we
+ * are "vulnerable": keep producing defensive units and fund their
+ * upkeep in peacetime instead of fully disarming.
+ *
+ * Results are computed once per turn (dai_update_deterrence(), called
+ * from dai_do_first_activities()) and cached in adv_data.deterrence,
+ * where server code can inspect them without entering AI internals.
+ **************************************************************************/
+
+/* Value of a city as a defensive position. Garrisons are counted
+ * separately via the unit list, so this is just the terrain/improvement
+ * value of the city itself. The same formula is used for own and
+ * foreign cities to keep relative comparisons fair. */
+#define DETERRENCE_CITY_BASE      40.0f
+#define DETERRENCE_CITY_PER_SIZE  10.0f
+/* Each tech an opponent is ahead of us raises their deterrence need by
+ * this much (only counted when we can legitimately know their
+ * research: own embassy, or no H_MAP handicap). */
+#define DETERRENCE_TECH_WEIGHT    25.0f
+/* Even players we love warrant some minimal level of deterrence. */
+#define DETERRENCE_MIN_RELATIONS  0.1f
+/* Peacetime "danger" floor used for deterrent defensive production.
+ * Deliberately low: deterrent units must lose to real emergencies but
+ * still be considered against civilian production. */
+#define DETERRENCE_MIN_CITY_DANGER 25
+
+/**************************************************************************
+  Power contribution of a single unit. Linear scale, same formula for
+  own and foreign units.
+**************************************************************************/
+static float deterrence_unit_power(const struct unit *punit)
+{
+  const struct unit_type *utype = unit_type_get(punit);
+
+  return punit->hp * (utype->attack_strength + utype->defense_strength);
+}
+
+/**************************************************************************
+  Estimate subject's military power as seen by observer. Respects the
+  intel model: observers with the H_MAP handicap only count units they
+  can actually see and cities they know about; observers without it
+  (and observers estimating themselves) see everything.
+**************************************************************************/
+static float deterrence_power_estimate(struct player *observer,
+                                       struct player *subject)
+{
+  bool omniscient = (observer == subject) || !has_handicap(observer, H_MAP);
+  float power = 0.0f;
+
+  unit_list_iterate(subject->units, punit) {
+    if (omniscient || can_player_see_unit(observer, punit)) {
+      power += deterrence_unit_power(punit);
+    }
+  } unit_list_iterate_end;
+
+  city_list_iterate(subject->cities, pcity) {
+    if (omniscient || map_is_known(pcity->tile, observer)) {
+      power += DETERRENCE_CITY_BASE
+               + DETERRENCE_CITY_PER_SIZE * city_size_get(pcity);
+    }
+  } city_list_iterate_end;
+
+  return power;
+}
+
+/**************************************************************************
+  Recompute this turn's deterrence assessment and cache it in adv_data.
+  Safe to call multiple times; recomputes unconditionally.
+**************************************************************************/
+void dai_update_deterrence(struct ai_type *ait, struct player *pplayer)
+{
+  struct adv_data *adv;
+  struct adv_deterrence *det;
+
+  if (S_S_RUNNING != server_state()) {
+    /* Same convention as dai_assess_danger_player(): no game, no data. */
+    return;
+  }
+
+  adv = adv_data_get(pplayer, NULL);
+  det = &adv->deterrence;
+
+  det->turn = game.info.turn;
+  det->vulnerable = FALSE;
+  det->need = 0.0f;
+  det->threat = -1;
+  det->threat_rpi = 0.0f;
+
+  players_iterate(aplayer) {
+    det->opp_threshold[player_index(aplayer)] = 0.0f;
+    det->opp_rpi[player_index(aplayer)] = 0.0f;
+  } players_iterate_end;
+
+  if (!game.server.aideterrence || is_barbarian(pplayer)
+      || !pplayer->is_alive) {
+    det->power = 0.0f;
+    return;
+  }
+
+  det->power = deterrence_power_estimate(pplayer, pplayer);
+
+  players_iterate_alive(aplayer) {
+    int pn = player_index(aplayer);
+    float opp_power, dt, rpi;
+    float aggression, relations, rel_factor;
+
+    if (aplayer == pplayer || is_barbarian(aplayer)
+        || pplayers_allied(pplayer, aplayer)
+        || players_on_same_team(pplayer, aplayer)) {
+      continue;
+    }
+
+    opp_power = deterrence_power_estimate(pplayer, aplayer);
+
+    aggression = ai_trait_get_value(TRAIT_AGGRESSIVE, pplayer)
+                 / (float)TRAIT_MAX_VALUE;
+    relations = pplayer->ai_common.love[pn] / (float)MAX_AI_LOVE;
+    rel_factor = MAX(DETERRENCE_MIN_RELATIONS,
+                     1.0f - (relations + 1.0f) / 2.0f);
+
+    dt = opp_power * (1.0f + aggression) * rel_factor;
+
+    /* A tech lead raises the need, but only when we can legitimately
+     * know their research state. */
+    if (player_has_real_embassy(pplayer, aplayer)
+        || !has_handicap(pplayer, H_MAP)) {
+      int tech_diff = research_get(aplayer)->techs_researched
+                      - research_get(pplayer)->techs_researched;
+
+      if (tech_diff > 0) {
+        dt += tech_diff * DETERRENCE_TECH_WEIGHT;
+      }
+    }
+
+    if (opp_power > 0.0f) {
+      rpi = det->power / opp_power - 1.0f;
+    } else {
+      rpi = (det->power > 0.0f) ? 1.0f : 0.0f;
+    }
+
+    det->opp_threshold[pn] = dt;
+    det->opp_rpi[pn] = rpi;
+
+    if (dt > det->need) {
+      det->need = dt;
+      det->threat = pn;
+      det->threat_rpi = rpi;
+    }
+  } players_iterate_alive_end;
+
+  det->vulnerable = (det->threat >= 0 && det->power < det->need);
+
+  log_base(LOG_DETERRENCE, "%s deterrence: power=%.1f need=%.1f (%s)",
+           player_name(pplayer), det->power, det->need,
+           det->vulnerable ? "VULNERABLE" : "safe");
+  if (det->threat >= 0) {
+    log_base(LOG_DETERRENCE, "%s main threat: %s (rpi %.2f)",
+             player_name(pplayer),
+             player_name(player_by_number(det->threat)),
+             det->threat_rpi);
+  }
+}
+
+/**************************************************************************
+  Are we currently below our deterrence need? Uses the cached per-turn
+  assessment, computing it on demand if necessary.
+**************************************************************************/
+bool dai_deterrence_vulnerable(struct ai_type *ait, struct player *pplayer)
+{
+  struct adv_data *adv;
+
+  if (!game.server.aideterrence || is_barbarian(pplayer)) {
+    return FALSE;
+  }
+
+  adv = adv_data_get(pplayer, NULL);
+  if (adv->deterrence.turn != game.info.turn) {
+    dai_update_deterrence(ait, pplayer);
+  }
+
+  return adv->deterrence.vulnerable;
+}
+
+/**************************************************************************
+  Should this city keep producing defensive units as a peacetime
+  deterrent? True when we are strategically vulnerable and the city is
+  reachable by potential aggressors (on a continent where dangerous
+  players have cities, or threatened by seaborne invasion).
+**************************************************************************/
+static bool deterrence_city_posture(struct ai_type *ait,
+                                    struct player *pplayer,
+                                    struct city *pcity)
+{
+  struct adv_data *adv;
+  Continent_id cont;
+
+  if (pcity->surplus[O_SHIELD] <= 0
+      || !dai_deterrence_vulnerable(ait, pplayer)) {
+    return FALSE;
+  }
+
+  adv = adv_data_get(pplayer, NULL);
+  cont = tile_continent(pcity->tile);
+
+  return ((cont >= 0 && adv->threats.continent != NULL
+           && adv->threats.continent[cont])
+          || adv->threats.invasions);
+}
+
 /****************************************************************************
   This function selects either a defender or an attacker to be built.
   It records its choice into adv_choice struct.
@@ -1403,6 +1623,7 @@ void military_advisor_choose_build(struct ai_type *ait,
   struct ai_city *city_data = def_ai_city_data(pcity, ait);
   adv_want martial_value = 0;
   bool martial_need = FALSE;
+  bool deterrent_posture;
 
   adv_init_choice(choice);
 
@@ -1436,8 +1657,13 @@ void military_advisor_choose_build(struct ai_type *ait,
                                              1, FEELING_FINAL);
   }
 
+  /* Peacetime deterrence: when we are strategically vulnerable, keep a
+   * minimal defensive posture in cities reachable by potential
+   * aggressors, even with no immediate danger in sight. */
+  deterrent_posture = deterrence_city_posture(ait, pplayer, pcity);
+
   /* Otherwise no need to defend yet */
-  if (city_data->danger != 0 || martial_value > 0) {
+  if (city_data->danger != 0 || martial_value > 0 || deterrent_posture) {
     struct impr_type *pimprove;
     int num_defenders = unit_list_size(ptile->units);
     int wall_id, danger;
@@ -1461,6 +1687,17 @@ void military_advisor_choose_build(struct ai_type *ait,
     if (pcity->surplus[O_SHIELD] <= 0 && our_def != 0) {
       /* Won't be able to support anything */
       danger = 0;
+    }
+
+    /* Peacetime deterrence: with no real danger in sight, use a fixed
+     * mild danger value. This keeps deterrent production a nudge that
+     * beats civilian choices but loses to any real need (also avoids
+     * the legacy danger=100 the formula above yields for undefended
+     * cities, which would be an emergency-level override). */
+    if (deterrent_posture && city_data->danger == 0) {
+      danger = DETERRENCE_MIN_CITY_DANGER;
+      CITY_LOG(LOG_DEBUG, pcity, "keeping deterrent posture (danger=%d)",
+               danger);
     }
 
     CITY_LOG(LOG_DEBUG, pcity, "m_a_c_d urgency=%d danger=%d num_def=%d "

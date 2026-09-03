@@ -580,9 +580,12 @@ static void dai_manage_taxes(struct ai_type *ait, struct player *pplayer)
                rates[AI_RATE_LUX], rates[AI_RATE_TAX]);
     } else {
       /* We need more trade to get a positive gold and science balance. */
-      if (!adv_wants_science(pplayer) || dai_on_war_footing(ait, pplayer)) {
-        /* Go for gold (improvements and units) and risk the loss of a
-         * tech. */
+      if (!adv_wants_science(pplayer) || dai_on_war_footing(ait, pplayer)
+          || dai_deterrence_vulnerable(ait, pplayer)) {
+        /* Go for gold (improvements and units) when:
+         * - We don't need science
+         * - We're on war footing
+         * - We're vulnerable and need deterrence */
         rates[AI_RATE_TAX] = maxrate;
         rates[AI_RATE_SCI] = MIN(maxrate, RATE_REMAINS(rates));
 
@@ -611,7 +614,10 @@ static void dai_manage_taxes(struct ai_type *ait, struct player *pplayer)
                                       + RATE_REMAINS(rates));
     rates[AI_RATE_SCI] = MIN(maxrate, rates[AI_RATE_SCI]
                                       + RATE_REMAINS(rates));
-  } else if (dai_on_war_footing(ait, pplayer)) {
+  } else if (dai_on_war_footing(ait, pplayer)
+             || dai_deterrence_vulnerable(ait, pplayer)) {
+    /* Fund the deterrent: gold before science while vulnerable, just
+     * like on a war footing. */
     rates[AI_RATE_TAX] = MIN(maxrate, rates[AI_RATE_TAX]
                                       + RATE_REMAINS(rates));
     rates[AI_RATE_SCI] = MIN(maxrate, rates[AI_RATE_SCI]
@@ -746,6 +752,10 @@ void dai_do_first_activities(struct ai_type *ait, struct player *pplayer)
   /* TODO: Make assess_danger save information on what is threatening
    * us and make dai_manage_units and Co act upon this information, trying
    * to eliminate the source of danger */
+
+  /* Once-per-turn strategic deterrence assessment; cached in adv_data
+   * for use by the military advisor and the tax code. */
+  dai_update_deterrence(ait, pplayer);
 
   TIMING_LOG(AIT_UNITS, TIMER_START);
   dai_manage_units(ait, pplayer);

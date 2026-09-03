@@ -98,6 +98,7 @@ enum command_id {
   /* undocumented */
   CMD_RFCSTYLE,
   CMD_SRVID,
+  CMD_DETERRENCE,
 
   /* pseudo-commands: */
   CMD_NUM,		/* the number of commands - for iterations */

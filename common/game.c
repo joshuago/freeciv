@@ -357,6 +357,7 @@ static void game_defaults(void)
     sz_strlcpy(game.server.allow_take, GAME_DEFAULT_ALLOW_TAKE);
     game.server.allowed_city_names = GAME_DEFAULT_ALLOWED_CITY_NAMES;
     game.server.aqueductloss      = GAME_DEFAULT_AQUEDUCTLOSS;
+    game.server.aideterrence      = GAME_DEFAULT_AIDETERRENCE;
     game.server.auto_ai_toggle    = GAME_DEFAULT_AUTO_AI_TOGGLE;
     game.server.autoattack        = GAME_DEFAULT_AUTOATTACK;
     game.server.barbarianrate     = GAME_DEFAULT_BARBARIANRATE;

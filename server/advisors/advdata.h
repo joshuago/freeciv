@@ -37,6 +37,23 @@ enum adv_improvement_status {
   ADV_IMPR_LAST
 };
 
+/* Strategic deterrence assessment, recomputed once per turn by the
+ * AI (dai_update_deterrence()). Kept here so that server code can
+ * inspect it without reaching into AI module internals. */
+struct adv_deterrence {
+  int turn;         /* Turn when last computed; -1 = never */
+  bool vulnerable;  /* Our power is below someone's deterrence need */
+  float power;      /* Our estimated military power (full self-knowledge) */
+  float need;       /* Highest deterrence threshold among opponents */
+  int threat;       /* Player number of main threat (-1 = none) */
+  float threat_rpi; /* Relative power index vs main threat */
+
+  /* Per-opponent details, indexed by player number. Threshold 0 means
+   * "no deterrence needed" (self, ally, teammate, or dead player). */
+  float opp_threshold[MAX_NUM_PLAYER_SLOTS];
+  float opp_rpi[MAX_NUM_PLAYER_SLOTS];
+};
+
 struct adv_dipl {
   /* Remember one example of each for text spam purposes. */
   bool allied_with_enemy;
@@ -70,6 +87,8 @@ struct adv_data {
     bool land_done;   /* nothing more on land to explore anywhere */
     bool sea_done;    /* nothing more to explore at sea */
   } explore;
+
+  struct adv_deterrence deterrence;
 
   /* This struct is used for statistical unit building, eg to ensure
    * that we don't build too few or too many units of a given type. */
