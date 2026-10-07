@@ -5709,6 +5709,11 @@ static bool sg_load_player_unit(struct loaddata *loading,
     punit->nationality = plr;
   }
 
+  /* Not present in older savegames; default to no note. */
+  sz_strlcpy(punit->note,
+             secfile_lookup_str_default(loading->file, "",
+                                        "%s.note", unitstr));
+
   sg_warn_ret_val(secfile_lookup_int(loading->file, &punit->homecity,
                                      "%s.homecity", unitstr), FALSE,
                   "%s", secfile_error());
@@ -6361,6 +6366,7 @@ static void sg_save_player_units(struct savedata *saving,
                       "%s.born", buf);
     secfile_insert_int(saving->file, punit->battlegroup,
                        "%s.battlegroup", buf);
+    secfile_insert_str(saving->file, punit->note, "%s.note", buf);
 
     if (punit->goto_tile) {
       index_to_native_pos(&nat_x, &nat_y, tile_index(punit->goto_tile));

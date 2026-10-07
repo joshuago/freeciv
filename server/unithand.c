@@ -3313,6 +3313,39 @@ void handle_unit_battlegroup(struct player *pplayer,
 }
 
 /**************************************************************************
+  Set the player's note for the unit.
+
+  The note is a free-form text the player can attach to a unit, e.g. to
+  remember where a unit sent on a long journey is headed.  It is stored
+  by the server and included in the full unit info (owner and observers);
+  other players only receive the short unit info, which has no note.
+**************************************************************************/
+void handle_unit_set_note(struct player *pplayer,
+                          int unit_id, const char *note)
+{
+  struct unit *punit = player_unit_by_number(pplayer, unit_id);
+  char *c;
+
+  if (NULL == punit) {
+    /* Probably died or bribed. */
+    log_verbose("handle_unit_set_note() invalid unit %d", unit_id);
+    return;
+  }
+
+  sz_strlcpy(punit->note, note);
+
+  /* The savegame format is line-based, so make sure the note cannot
+   * contain line breaks. */
+  for (c = punit->note; *c != '\0'; c++) {
+    if (*c == '\n' || *c == '\r') {
+      *c = ' ';
+    }
+  }
+
+  send_unit_info(NULL, punit);
+}
+
+/**************************************************************************
   Handle request to set unit to autosettler mode.
 **************************************************************************/
 void handle_unit_autosettlers(struct player *pplayer, int unit_id)

@@ -436,6 +436,13 @@ const char *popup_info_text(struct tile *ptile)
       }
     }
 
+    /* Only known to us for our own units (and, for an observer, anyone's),
+     * since the server sends the note only in the full unit info. */
+    if (punit->note[0] != '\0') {
+      /* TRANS: note attached to a unit by the player */
+      astr_add_line(&str, _("Note: %s"), punit->note);
+    }
+
     if (unit_owner(punit) == client_player()
         || client_is_global_observer()) {
       /* Show bribe cost for own units. */
@@ -547,6 +554,11 @@ const char *unit_description(struct unit *punit)
 
   astr_add_line(&str, "%s",
 		get_nearest_city_text(pcity_near, pcity_near_dist));
+
+  if (punit->note[0] != '\0') {
+    /* TRANS: note attached to a unit by the player */
+    astr_add_line(&str, _("Note: %s"), punit->note);
+  }
 #ifdef DEBUG
   astr_add_line(&str, "Unit ID: %d", punit->id);
 #endif
@@ -1156,6 +1168,12 @@ const char *get_unit_info_label_text2(struct unit_list *punits, int linebreaks)
       } else {
         astr_add_line(&str, " ");
       }
+    }
+
+    /* Possible extra line, the player's note for the unit. */
+    if (punit->note[0] != '\0') {
+      /* TRANS: note attached to a unit by the player */
+      astr_add_line(&str, _("Note: %s"), punit->note);
     }
 
   } else if (count > 1) {

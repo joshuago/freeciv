@@ -2315,6 +2315,7 @@ void package_unit(struct unit *punit, struct packet_unit_info *packet)
   packet->action_decision_tile = (punit->action_decision_tile
                                   ? tile_index(punit->action_decision_tile)
                                   : IDENTITY_NUMBER_ZERO);
+  sz_strlcpy(packet->note, punit->note);
 }
 
 /**************************************************************************

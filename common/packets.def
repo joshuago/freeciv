@@ -3,7 +3,7 @@
 Max used id:
 ============
 
-Max id: 253
+Max id: 254
 
 Packets are not ordered by their id, but by their category. New packet
 with higher id may get added to existing category, and not to the end of file.
@@ -955,6 +955,8 @@ PACKET_UNIT_INFO = 63; sc, lsend, is-game-info, cancel(PACKET_UNIT_SHORT_INFO)
 
   ACTION_DECISION action_decision_want;
   TILE action_decision_tile;
+
+  STRING note[MAX_LEN_UNIT_NOTE]; add-cap(unit_note)
 end
 
 PACKET_UNIT_SHORT_INFO = 64; sc, lsend, is-game-info, force, cancel(PACKET_UNIT_INFO)
@@ -1002,6 +1004,11 @@ end
 PACKET_UNIT_BATTLEGROUP = 71; cs, dsend
   UNIT unit_id;
   SINT8 battlegroup;
+end
+
+PACKET_UNIT_SET_NOTE = 254; cs, dsend
+  UNIT unit_id;
+  STRING note[MAX_LEN_UNIT_NOTE];
 end
 
 # used for client orders: currently client-side goto and patrol

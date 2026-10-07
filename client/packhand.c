@@ -232,6 +232,7 @@ static struct unit *unpackage_unit(const struct packet_unit_info *packet)
   }
 
   punit->battlegroup = packet->battlegroup;
+  sz_strlcpy(punit->note, packet->note);
   punit->has_orders = packet->has_orders;
   punit->orders.length = packet->orders_length;
   punit->orders.index = packet->orders_index;
@@ -1753,6 +1754,9 @@ static bool handle_unit_packet_common(struct unit *packet_unit)
     punit->fuel = packet_unit->fuel;
     punit->goto_tile = packet_unit->goto_tile;
     punit->paradropped = packet_unit->paradropped;
+    /* The note is only included in full unit info, i.e. for the owner
+     * (and observers); for short info it is empty and changes nothing. */
+    sz_strlcpy(punit->note, packet_unit->note);
     if (punit->done_moving != packet_unit->done_moving) {
       punit->done_moving = packet_unit->done_moving;
       check_focus = TRUE;

@@ -63,6 +63,7 @@ extern "C" {
 
 /* Changing these will probably break network compatibility. */
 #define MAX_LEN_NAME     48
+#define MAX_LEN_UNIT_NOTE 64
 #define MAX_LEN_DEMOGRAPHY 16
 #define MAX_LEN_ALLOW_TAKE 16
 #define MAX_LEN_GAME_IDENTIFIER 33

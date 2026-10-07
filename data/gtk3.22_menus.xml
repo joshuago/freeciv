@@ -302,6 +302,9 @@
               <object class="GtkMenuItem" id="UNIT_HOMECITY" />
             </child>
             <child>
+              <object class="GtkMenuItem" id="UNIT_NOTE" />
+            </child>
+            <child>
               <object class="GtkMenuItem" id="UNIT_UPGRADE" />
             </child>
             <child>
