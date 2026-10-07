@@ -49,6 +49,7 @@
 #include "finddlg.h"
 #include "gamedlgs.h"
 #include "gotodlg.h"
+#include "inputdlg.h"
 #include "gui_main.h"
 #include "gui_stuff.h"
 #include "helpdlg.h"
@@ -223,6 +224,7 @@ static void unit_unload_callback(GtkMenuItem *item, gpointer data);
 static void unit_unload_transporter_callback(GtkMenuItem *item,
                                              gpointer data);
 static void unit_homecity_callback(GtkMenuItem *item, gpointer data);
+static void unit_note_callback(GtkMenuItem *item, gpointer data);
 static void unit_upgrade_callback(GtkMenuItem *item, gpointer data);
 static void unit_convert_callback(GtkMenuItem *item, gpointer data);
 static void unit_disband_callback(GtkMenuItem *item, gpointer data);
@@ -485,6 +487,8 @@ static struct menu_entry_info menu_entries[] =
     G_CALLBACK(unit_unload_transporter_callback), MGROUP_UNIT },
   { "UNIT_HOMECITY", N_("Set _Home City"), GDK_KEY_h, 0,
     G_CALLBACK(unit_homecity_callback), MGROUP_UNIT },
+  { "UNIT_NOTE", N_("Set _Note..."), 0, 0,
+    G_CALLBACK(unit_note_callback), MGROUP_UNIT },
   { "UNIT_UPGRADE", N_("Upgr_ade"), GDK_KEY_u, GDK_SHIFT_MASK,
     G_CALLBACK(unit_upgrade_callback), MGROUP_UNIT },
   { "UNIT_CONVERT", N_("C_onvert"), GDK_KEY_o, GDK_SHIFT_MASK,
@@ -1473,6 +1477,41 @@ static void unit_unload_transporter_callback(GtkMenuItem *item,
 static void unit_homecity_callback(GtkMenuItem *item, gpointer data)
 {
   key_unit_homecity();
+}
+
+/****************************************************************
+  Response callback for the unit note input dialog.  The note is set
+  on all units currently in focus.
+*****************************************************************/
+static void unit_note_dialog_callback(gpointer data, gint response,
+                                      const char *input)
+{
+  if (response == GTK_RESPONSE_OK) {
+    unit_list_iterate(get_units_in_focus(), punit) {
+      dsend_packet_unit_set_note(&client.conn, punit->id, input);
+    } unit_list_iterate_end;
+  }
+}
+
+/****************************************************************
+  Item "UNIT_NOTE" callback.
+*****************************************************************/
+static void unit_note_callback(GtkMenuItem *item, gpointer data)
+{
+  struct unit_list *punits = get_units_in_focus();
+  const char *suggestion = "";
+
+  if (unit_list_size(punits) > 0) {
+    /* Suggest the note of the first unit in focus. */
+    suggestion = unit_list_get(punits, 0)->note;
+  }
+
+  input_dialog_create(GTK_WINDOW(toplevel),
+                      _("Set Unit Note"),
+                      _("Enter a note for the selected unit(s):"),
+                      suggestion,
+                      unit_note_dialog_callback,
+                      NULL);
 }
 
 /****************************************************************

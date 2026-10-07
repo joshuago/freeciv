@@ -164,6 +164,11 @@ struct unit {
 #define BATTLEGROUP_NONE (-1)
   int battlegroup;
 
+  /* A free-form note set by the player, e.g. to remember where the unit
+   * is heading on a long journey.  Defined by the client but stored by
+   * the server; always at most MAX_LEN_UNIT_NOTE bytes, NUL-terminated. */
+  char note[MAX_LEN_UNIT_NOTE];
+
   bool has_orders;
   struct {
     int length, index;
