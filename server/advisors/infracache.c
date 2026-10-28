@@ -195,19 +195,33 @@ static int adv_calc_extra(const struct city *pcity, const struct tile *ptile,
 
   fc_assert_ret_val(ptile != NULL, -1);
 
-  if (player_can_build_extra(pextra, city_owner(pcity), ptile)) {
+  {
     struct tile *vtile = tile_virtual_new(ptile);
 
-    tile_add_extra(vtile, pextra);
-
-    extra_type_iterate(cextra) {
-      if (tile_has_extra(vtile, cextra)
-          && !can_extras_coexist(pextra, cextra)) {
-        tile_remove_extra(vtile, cextra);
+    /* Make directly buildable dependencies available for the evaluation.
+     * Autosettlers can then consider building them as the first step. */
+    extra_deps_iterate(&(pextra->reqs), pdep) {
+      if (!tile_has_extra(vtile, pdep)
+          && (!player_can_build_extra(pdep, city_owner(pcity), vtile)
+              || !tile_extra_apply(vtile, pdep))) {
+        tile_virtual_destroy(vtile);
+        return -1;
       }
-    } extra_type_iterate_end;
+    } extra_deps_iterate_end;
 
-    goodness = city_tile_value(pcity, vtile, 0, 0);
+    if (player_can_build_extra(pextra, city_owner(pcity), vtile)) {
+      tile_add_extra(vtile, pextra);
+
+      extra_type_iterate(cextra) {
+        if (tile_has_extra(vtile, cextra)
+            && !can_extras_coexist(pextra, cextra)) {
+          tile_remove_extra(vtile, cextra);
+        }
+      } extra_type_iterate_end;
+
+      goodness = city_tile_value(pcity, vtile, 0, 0);
+    }
+
     tile_virtual_destroy(vtile);
   }
 
