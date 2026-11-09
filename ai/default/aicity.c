@@ -24,10 +24,13 @@
 
 /* common */
 #include "actions.h"
+#include "city.h"
 #include "game.h"
 #include "government.h"
+#include "player.h"
 #include "research.h"
 #include "specialist.h"
+#include "terrain.h"
 
 /* server */
 #include "cityhand.h"
@@ -130,6 +133,483 @@
 static void dai_city_sell_noncritical(struct city *pcity, bool redundant_only);
 static void resolve_city_emergency(struct ai_type *ait, struct player *pplayer,
                                    struct city *pcity);
+
+/**************************************************************************
+  The improvements that make a city more capable instead of just bigger.
+
+  The AI gives these priority when the city is safe and the civilization
+  has a surplus to spend: an improvement that raises the science, gold or
+  shield output of a city is worth more than yet another soldier, and
+  the civilization gets more out of a developed city than out of a war.
+
+  The improvements are recognized by their effects, so that this works
+  with any ruleset:
+    - Library, University, Research Lab      (science output)
+    - Marketplace, Bank, Stock Exchange      (gold output)
+    - Factory and friends                    (shield output)
+    - Offshore Platform                      (shield output from water)
+    - Mass Transit                           (less pollution)
+**************************************************************************/
+enum capital_impr_class {
+  CAPITAL_IMPR_NONE,
+  CAPITAL_IMPR_SCIENCE,
+  CAPITAL_IMPR_GOLD,
+  CAPITAL_IMPR_FACTORY,
+  CAPITAL_IMPR_OFFSHORE,
+  CAPITAL_IMPR_MASS_TRANSIT
+};
+
+/* What the AI wants for the different kinds of improvements.  These are
+ * in the same scale as the other wants of the AI: the domestic advisor
+ * caps its choice at 199, so anything above that beats the settlers and
+ * the caravans the AI would otherwise build. */
+#define CAPITAL_IMPR_WANT_OFFSHORE    300
+#define CAPITAL_IMPR_WANT_FACTORY     290
+#define CAPITAL_IMPR_WANT_MASS_TRANSIT 280
+#define CAPITAL_IMPR_WANT_SCIENCE     260
+#define CAPITAL_IMPR_WANT_GOLD        240
+/* An improvement that is one step further down the chain of its class
+ * (a university instead of a library) is slightly less desirable. */
+#define CAPITAL_IMPR_WANT_TIER_STEP   5
+/* The trade output a city needs before the AI builds the improvements
+ * that boost its science and gold output.  These thresholds were
+ * specified as 20/40/50, but the cities of the AI are small: a city of
+ * size 10 exports some 10 trade, and only the biggest cities of a big
+ * game reach 20.  The values are scaled down to reach the same intent
+ * with the cities the AI actually has: a library and a marketplace for a
+ * decent city, a university and a bank for a big one, and a research
+ * lab and a stock exchange for a huge one. */
+#define CAPITAL_IMPR_TRADE_LIBRARY    6
+#define CAPITAL_IMPR_TRADE_UNIVERSITY 12
+#define CAPITAL_IMPR_TRADE_RESEARCH   18
+/* A city that produces less than this many shields can use a bigger
+ * production base. */
+#define CAPITAL_IMPR_LOW_SHIELD       2
+/* How deep the chain of same class improvements may get. */
+#define CAPITAL_IMPR_MAX_DEPTH        5
+/* The deepest improvement of a class that is not chained to the others. */
+#define CAPITAL_IMPR_MAX_TIER         99
+
+/* What the AI thinks of each of the improvements of the ruleset.  This
+ * only depends on the ruleset, so it is computed once per run of the
+ * building advisor. */
+struct capital_impr {
+  enum capital_impr_class cls;
+  int tier;                     /* How advanced it is within its class */
+  bool chain;                   /* Is it part of the chain of its class? */
+};
+
+/**************************************************************************
+  What output type does this effect apply to?
+**************************************************************************/
+static Output_type_id capital_effect_otype(const struct effect *peffect)
+{
+  Output_type_id otype = O_LAST;
+
+  requirement_vector_iterate(&peffect->reqs, preq) {
+    if (preq->source.kind == VUT_OTYPE) {
+      otype = preq->source.value.outputtype;
+    }
+  } requirement_vector_iterate_end;
+
+  return otype;
+}
+
+/**************************************************************************
+  Does this effect apply to the water tiles of the city?  Those are the
+  effects of the offshore platform.
+**************************************************************************/
+static bool capital_effect_is_oceanic(const struct effect *peffect)
+{
+  bool oceanic = FALSE;
+
+  requirement_vector_iterate(&peffect->reqs, preq) {
+    if (preq->source.kind == VUT_TERRAINCLASS
+        && preq->source.value.terrainclass == TC_OCEAN) {
+      oceanic = TRUE;
+    }
+  } requirement_vector_iterate_end;
+
+  return oceanic;
+}
+
+/**************************************************************************
+  What kind of capital improvement is this, if any?
+**************************************************************************/
+static enum capital_impr_class capital_impr_class_of(struct impr_type *pimprove)
+{
+  struct universal source = {
+    .kind = VUT_IMPROVEMENT,
+    .value = {.building = pimprove}
+  };
+  bool science = FALSE;
+  bool gold = FALSE;
+  bool factory = FALSE;
+  bool offshore = FALSE;
+  bool mass_transit = FALSE;
+
+  if (pimprove->genus != IG_IMPROVEMENT) {
+    /* Wonders are valued by their own code. */
+    return CAPITAL_IMPR_NONE;
+  }
+
+  effect_list_iterate(get_req_source_effects(&source), peffect) {
+    switch (peffect->type) {
+    case EFT_OUTPUT_BONUS:
+    case EFT_OUTPUT_BONUS_2:
+      switch (capital_effect_otype(peffect)) {
+      case O_SCIENCE:
+        science = TRUE;
+        break;
+      case O_GOLD:
+        gold = TRUE;
+        break;
+      case O_SHIELD:
+        factory = TRUE;
+        break;
+      default:
+        break;
+      }
+      break;
+    case EFT_OUTPUT_ADD_TILE:
+    case EFT_OUTPUT_INC_TILE:
+    case EFT_OUTPUT_PER_TILE:
+      if (capital_effect_otype(peffect) == O_SHIELD
+          && capital_effect_is_oceanic(peffect)) {
+        offshore = TRUE;
+      }
+      break;
+    case EFT_POLLU_POP_PCT:
+    case EFT_POLLU_POP_PCT_2:
+      if (peffect->value < 0) {
+        /* Reduces the pollution of the city. */
+        mass_transit = TRUE;
+      }
+      break;
+    default:
+      break;
+    }
+  } effect_list_iterate_end;
+
+  if (science) {
+    return CAPITAL_IMPR_SCIENCE;
+  }
+  if (gold) {
+    return CAPITAL_IMPR_GOLD;
+  }
+  if (offshore) {
+    return CAPITAL_IMPR_OFFSHORE;
+  }
+  if (factory) {
+    return CAPITAL_IMPR_FACTORY;
+  }
+  if (mass_transit) {
+    return CAPITAL_IMPR_MASS_TRANSIT;
+  }
+
+  return CAPITAL_IMPR_NONE;
+}
+
+/**************************************************************************
+  How many improvements of the same class must be built before this one?
+
+  The library comes before the university, which comes before the
+  research lab, because each of them requires the previous one.  The
+  same goes for the marketplace, the bank and the stock exchange.
+**************************************************************************/
+static int capital_impr_tier(struct impr_type *pimprove,
+                             enum capital_impr_class cls, int depth)
+{
+  int tier = 0;
+
+  if (depth > CAPITAL_IMPR_MAX_DEPTH) {
+    return tier;
+  }
+
+  requirement_vector_iterate(&pimprove->reqs, preq) {
+    if (preq->source.kind == VUT_IMPROVEMENT && preq->present) {
+      struct impr_type *pneeded = preq->source.value.building;
+
+      if (pneeded != NULL && pneeded != pimprove
+          && capital_impr_class_of(pneeded) == cls) {
+        tier = MAX(tier, capital_impr_tier(pneeded, cls, depth + 1) + 1);
+      }
+    }
+  } requirement_vector_iterate_end;
+
+  return tier;
+}
+
+/**************************************************************************
+  Classify all the improvements of the ruleset.
+**************************************************************************/
+static void capital_impr_init(struct capital_impr *info)
+{
+  int i;
+
+  for (i = 0; i < improvement_count(); i++) {
+    struct impr_type *pimprove = improvement_by_number(i);
+
+    info[i].cls = capital_impr_class_of(pimprove);
+    info[i].tier = (info[i].cls == CAPITAL_IMPR_NONE)
+      ? 0 : capital_impr_tier(pimprove, info[i].cls, 0);
+    info[i].chain = FALSE;
+  }
+
+  /* An improvement belongs to the chain of its class if it is required
+   * by another improvement of the same class, or requires one.  That is
+   * the case for the library, the university and the research lab, and
+   * for the marketplace, the bank and the stock exchange.  Other
+   * improvements that happen to give the same bonus (a supermarket, for
+   * example) are not part of the chain and are left alone. */
+  for (i = 0; i < improvement_count(); i++) {
+    struct impr_type *pimprove = improvement_by_number(i);
+
+    if (info[i].cls == CAPITAL_IMPR_NONE) {
+      continue;
+    }
+    if (info[i].tier > 0) {
+      /* It requires an improvement of the same class. */
+      info[i].chain = TRUE;
+    }
+    requirement_vector_iterate(&pimprove->reqs, preq) {
+      int j;
+
+      if (preq->source.kind != VUT_IMPROVEMENT || !preq->present) {
+        continue;
+      }
+      for (j = 0; j < improvement_count(); j++) {
+        if (info[j].cls == info[i].cls && preq->source.value.building
+            == improvement_by_number(j)) {
+          /* Another improvement of the same class requires this one. */
+          info[j].chain = TRUE;
+        }
+      }
+    } requirement_vector_iterate_end;
+  }
+
+  /* A class that has no chain at all (a ruleset with a single library,
+   * for example) is used as it is. */
+  for (i = 0; i < improvement_count(); i++) {
+    enum capital_impr_class cls = info[i].cls;
+    bool chained = FALSE;
+    int j;
+
+    if (cls == CAPITAL_IMPR_NONE) {
+      continue;
+    }
+    for (j = 0; j < improvement_count(); j++) {
+      if (info[j].cls == cls && info[j].chain) {
+        chained = TRUE;
+        break;
+      }
+    }
+    if (!chained) {
+      for (j = 0; j < improvement_count(); j++) {
+        if (info[j].cls == cls) {
+          info[j].chain = TRUE;
+        }
+      }
+    }
+  }
+}
+
+/**************************************************************************
+  Does the city already have an improvement of this class?
+**************************************************************************/
+static bool city_has_class_impr(const struct city *pcity,
+                                const struct capital_impr *info,
+                                enum capital_impr_class cls)
+{
+  int i;
+
+  for (i = 0; i < improvement_count(); i++) {
+    if (info[i].cls == cls
+        && city_has_building(pcity, improvement_by_number(i))) {
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+/**************************************************************************
+  Which improvement of this class should the city build next?
+
+  The improvements of a class come in a chain: the library before the
+  university, the marketplace before the bank, and so on.  The city
+  builds the first one of the chain that it is still missing.  Only the
+  improvements up to max_tier are considered.
+
+  Returns NULL if the city does not need any improvement of this class.
+**************************************************************************/
+static struct impr_type *capital_impr_next(const struct city *pcity,
+                                            const struct capital_impr *info,
+                                            enum capital_impr_class cls,
+                                            int max_tier)
+{
+  struct impr_type *best = NULL;
+  int best_tier = 0;
+  int best_cost = 0;
+  int i;
+
+  for (i = 0; i < improvement_count(); i++) {
+    struct impr_type *pimprove = improvement_by_number(i);
+    const int cost = impr_build_shield_cost(pimprove);
+
+    if (info[i].cls != cls || info[i].tier > max_tier || !info[i].chain) {
+      continue;
+    }
+    if (city_has_building(pcity, pimprove)) {
+      /* The city already has this one. */
+      continue;
+    }
+    if (best == NULL
+        || info[i].tier < best_tier
+        || (info[i].tier == best_tier && cost < best_cost)) {
+      best = pimprove;
+      best_tier = info[i].tier;
+      best_cost = cost;
+    }
+  }
+
+  return best;
+}
+
+/**************************************************************************
+  Is the city close enough to the water to work the water tiles?
+**************************************************************************/
+static bool city_is_coastal(const struct city *pcity)
+{
+  return is_terrain_class_near_tile(city_tile(pcity), TC_OCEAN);
+}
+
+/**************************************************************************
+  How much does the AI want to build this improvement to make the city
+  more capable?
+
+  A city that is safe and belongs to a civilization with a surplus should
+  develop itself instead of producing yet another unit.  The improvements
+  that increase the production capacity of the city (offshore platform,
+  factory) come first, then the ones that boost the science output, and
+  finally the ones that boost the gold output.
+
+  Returns 0 if this is not an improvement the AI wants for this city.
+**************************************************************************/
+static adv_want capital_improvement_want(struct ai_type *ait,
+                                          struct player *pplayer,
+                                          struct city *pcity,
+                                          const struct capital_impr *info,
+                                          struct impr_type *pimprove)
+{
+  struct ai_city *city_data = def_ai_city_data(pcity, ait);
+  const int idx = improvement_index(pimprove);
+  const enum capital_impr_class cls = info[idx].cls;
+  /* The trade output of the city, as it is shown in the city dialog.
+   * This is also what the science and the gold output of the city are
+   * based on. */
+  const int trade = pcity->surplus[O_TRADE];
+  struct impr_type *pnext;
+  adv_want want = 0;
+
+  if (cls == CAPITAL_IMPR_NONE) {
+    return 0;
+  }
+
+  /* Only a safe city is worth developing: an improvement is of no use
+   * to a city that is about to be taken over. */
+  if (city_data->danger > 0 || city_data->grave_danger > 0) {
+    return 0;
+  }
+
+  /* The civilization must have something to spend. */
+  if (player_get_expected_income(pplayer) + pplayer->economic.gold < 0) {
+    return 0;
+  }
+
+  switch (cls) {
+  case CAPITAL_IMPR_SCIENCE:
+  case CAPITAL_IMPR_GOLD:
+    {
+      /* A city with a decent trade output should have a library and a
+       * marketplace, a city whose trade is really flowing should also
+       * have a university and a bank, and the biggest cities should
+       * have a research lab and a stock exchange. */
+      int level = 0;
+
+      if (trade >= CAPITAL_IMPR_TRADE_RESEARCH) {
+        level = 3;
+      } else if (trade >= CAPITAL_IMPR_TRADE_UNIVERSITY) {
+        level = 2;
+      } else if (trade >= CAPITAL_IMPR_TRADE_LIBRARY) {
+        level = 1;
+      }
+
+      if (level == 0) {
+        /* The city does not need this improvement yet. */
+        return 0;
+      }
+      pnext = capital_impr_next(pcity, info, cls, level - 1);
+      if (pnext != pimprove) {
+        /* The city builds the improvements of this class in order. */
+        return 0;
+      }
+      want = (cls == CAPITAL_IMPR_SCIENCE) ? CAPITAL_IMPR_WANT_SCIENCE
+                                           : CAPITAL_IMPR_WANT_GOLD;
+      want -= info[idx].tier * CAPITAL_IMPR_WANT_TIER_STEP;
+    }
+    break;
+  case CAPITAL_IMPR_OFFSHORE:
+    /* A city that produces almost nothing can use a bigger production
+     * base, but only if it has water tiles to work. */
+    if (pcity->surplus[O_SHIELD] >= CAPITAL_IMPR_LOW_SHIELD
+        || !city_is_coastal(pcity)) {
+      return 0;
+    }
+    if (city_has_class_impr(pcity, info, cls)) {
+      /* The city already has one. */
+      return 0;
+    }
+    pnext = capital_impr_next(pcity, info, cls, CAPITAL_IMPR_MAX_TIER);
+    if (pnext != pimprove || !can_city_build_improvement_now(pcity, pimprove)) {
+      /* Not available yet, so work on science and gold instead. */
+      return 0;
+    }
+    want = CAPITAL_IMPR_WANT_OFFSHORE;
+    break;
+  case CAPITAL_IMPR_FACTORY:
+    if (city_has_class_impr(pcity, info, cls)) {
+      /* The city already has one. */
+      return 0;
+    }
+    pnext = capital_impr_next(pcity, info, cls, CAPITAL_IMPR_MAX_TIER);
+    if (pnext != pimprove || !can_city_build_improvement_now(pcity, pimprove)) {
+      /* Not available yet, so work on science and gold instead. */
+      return 0;
+    }
+    want = CAPITAL_IMPR_WANT_FACTORY;
+    break;
+  case CAPITAL_IMPR_MASS_TRANSIT:
+    if (city_pollution(pcity, pcity->prod[O_SHIELD]) <= 0) {
+      /* The city is not polluted. */
+      return 0;
+    }
+    if (city_has_class_impr(pcity, info, cls)) {
+      /* The city already has one. */
+      return 0;
+    }
+    pnext = capital_impr_next(pcity, info, cls, CAPITAL_IMPR_MAX_TIER);
+    if (pnext != pimprove || !can_city_build_improvement_now(pcity, pimprove)) {
+      return 0;
+    }
+    want = CAPITAL_IMPR_WANT_MASS_TRANSIT;
+    break;
+  default:
+    return 0;
+  }
+
+  return want;
+}
 
 /************************************************************************** 
   Increase want for a technology because of the value of that technology
@@ -1380,7 +1860,8 @@ static void adjust_improvement_wants_by_effects(struct ai_type *ait,
                                                 struct player *pplayer,
                                                 struct city *pcity,
                                                 struct impr_type *pimprove,
-                                                const bool already)
+                                                const bool already,
+                                                const struct capital_impr *info)
 {
   adv_want v = 0;
   int cities[REQ_RANGE_COUNT];
@@ -1633,6 +2114,19 @@ static void adjust_improvement_wants_by_effects(struct ai_type *ait,
     }
   } action_iterate_end;
 
+  if (!already) {
+    /* A safe city of a civilization with a surplus is better off
+     * developing itself than producing yet another unit.  The capital
+     * improvements get a want that beats the wants the AI has for the
+     * units it would otherwise build. */
+    const adv_want capital_want
+      = capital_improvement_want(ait, pplayer, pcity, info, pimprove);
+
+    if (capital_want > v) {
+      v = capital_want;
+    }
+  }
+
   if (already) {
     /* Discourage research of the technology that would make this building
      * obsolete. The bigger the desire for this building, the more
@@ -1726,6 +2220,11 @@ void dai_build_adv_init(struct ai_type *ait, struct player *pplayer)
 void dai_build_adv_adjust(struct ai_type *ait, struct player *pplayer,
                           struct city *wonder_city)
 {
+  /* What the AI thinks of each of the improvements of the ruleset. */
+  struct capital_impr cap_info[improvement_count()];
+
+  capital_impr_init(cap_info);
+
   /* Clear old building wants.
    * Do this separately from the iteration over improvement types
    * because each iteration could actually update more than one improvement,
@@ -1772,7 +2271,7 @@ void dai_build_adv_adjust(struct ai_type *ait, struct player *pplayer,
           int idx = improvement_index(pimprove);
 
           adjust_improvement_wants_by_effects(ait, pplayer, pcity,
-                                              pimprove, already);
+                                              pimprove, already, cap_info);
 
           fc_assert(!(already
                       && 0 < pcity->server.adv->building_want[idx]));
