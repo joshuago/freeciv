@@ -2215,6 +2215,17 @@ static struct setting settings[] = {
               "have previously seen the tiles."),
            NULL, NULL, GAME_DEFAULT_FOGGEDBORDERS)
 
+  GEN_BOOL("aidevelopment", game.server.aidevelopment,
+           SSET_RULES, SSET_ECONOMICS, SSET_SITUATIONAL, SSET_TO_CLIENT,
+           N_("Whether AI invests in city improvements during peace"),
+           N_("If enabled, AI players that are neither at war nor preparing "
+              "a war value improvements that increase city output or "
+              "reduce pollution more highly, so that they keep developing "
+              "their cities instead of falling back to units or coinage "
+              "once the basic improvements are built. Disable to get the "
+              "classic AI behavior."),
+           NULL, NULL, GAME_DEFAULT_AIDEVELOPMENT)
+
   GEN_BOOL("aideterrence", game.server.aideterrence,
            SSET_RULES, SSET_MILITARY, SSET_SITUATIONAL, SSET_TO_CLIENT,
            N_("Whether AI maintains peacetime deterrence"),

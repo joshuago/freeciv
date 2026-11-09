@@ -757,6 +757,11 @@ void dai_do_first_activities(struct ai_type *ait, struct player *pplayer)
    * for use by the military advisor and the tax code. */
   dai_update_deterrence(ait, pplayer);
 
+  /* Also recompute whether this is a peacetime development turn.  Uses
+   * the deterrence power estimate so that both decisions share one
+   * relative-strength assessment. */
+  dai_update_development_posture(ait, pplayer);
+
   TIMING_LOG(AIT_UNITS, TIMER_START);
   dai_manage_units(ait, pplayer);
   TIMING_LOG(AIT_UNITS, TIMER_STOP);

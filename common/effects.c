@@ -963,10 +963,24 @@ int get_potential_improvement_bonus(struct impr_type *pimprove,
     effect_list_iterate(plist, peffect) {
       bool present = TRUE;
       bool useful = TRUE;
+      const struct output_type *target_output = NULL;
 
       if (peffect->type != effect_type) {
         continue;
       }
+
+      /* The effect may be restricted to one output type.  The caller only
+       * supplies the effect type, so derive the output type from the
+       * effect's own requirements.  Evaluating OutputType requirements
+       * against a NULL target makes every output-boosting effect look
+       * useless, which in turn makes buildings such as Factory, Library
+       * and Marketplace appear unproductive. */
+      requirement_vector_iterate(&peffect->reqs, preq) {
+        if (preq->present && VUT_OTYPE == preq->source.kind) {
+          target_output = get_output_type(preq->source.value.outputtype);
+          break;
+        }
+      } requirement_vector_iterate_end;
 
       requirement_vector_iterate(&peffect->reqs, preq) {
         if (VUT_IMPROVEMENT == preq->source.kind
@@ -976,7 +990,7 @@ int get_potential_improvement_bonus(struct impr_type *pimprove,
         }
 
         if (!is_req_active(city_owner(pcity), NULL, pcity, pimprove,
-                           NULL, NULL, NULL, NULL, NULL,
+                           NULL, NULL, NULL, target_output, NULL,
                            preq, prob_type)) {
           useful = FALSE;
           break;

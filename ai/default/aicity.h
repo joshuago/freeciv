@@ -68,6 +68,8 @@ struct ai_city {
 };
 
 void dai_manage_cities(struct ai_type *ait, struct player *pplayer);
+void dai_update_development_posture(struct ai_type *ait,
+                                    struct player *pplayer);
 
 void dai_city_alloc(struct ai_type *ait, struct city *pcity);
 void dai_city_free(struct ai_type *ait, struct city *pcity);

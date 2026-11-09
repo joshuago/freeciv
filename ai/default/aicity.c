@@ -26,6 +26,7 @@
 #include "actions.h"
 #include "game.h"
 #include "government.h"
+#include "player.h"
 #include "research.h"
 #include "specialist.h"
 
@@ -36,6 +37,7 @@
 #include "notify.h"
 #include "plrhand.h"
 #include "srv_log.h"
+#include "srv_main.h"
 #include "unithand.h"
 
 /* server/advisors */
@@ -68,6 +70,27 @@
 #define LOG_BUY LOG_DEBUG
 #define LOG_EMERGENCY LOG_VERBOSE
 #define LOG_WANT LOG_VERBOSE
+#define LOG_DEVELOPMENT LOG_DEBUG
+
+/* Peacetime development posture.  These are deliberately mild: the floor
+ * has to beat routine civilian/coinage choices but lose to real military
+ * emergencies (danger >= 100), and the multiplier rewards buildings that
+ * already have a positive marginal value. */
+#define DEVELOPMENT_WANT_FLOOR 75
+#define DEVELOPMENT_WANT_MULTIPLIER_PCT 150
+/* Wartime economy is deliberately weaker than peacetime development: a
+ * city safe from immediate danger should still improve its output, but
+ * military production should remain competitive. */
+#define DEVELOPMENT_WARTIME_FLOOR 50
+/* Shield-producing improvements are how a threatened city builds its
+ * defenders faster, so they keep a higher wartime priority than other
+ * civilian buildings. */
+#define DEVELOPMENT_WARTIME_PRODUCTION_FLOOR 75
+#define DEVELOPMENT_WARTIME_MULTIPLIER_PCT 125
+/* Keep development wants below the emergency threshold used by
+ * dai_city_choose_build(): a real military emergency (want > 100) must
+ * still override civilian production. */
+#define DEVELOPMENT_WANT_MAX 99
 
 /* TODO:  AI_CITY_RECALC_SPEED should be configurable to ai difficulty.
           -kauf  */
@@ -1347,6 +1370,108 @@ static adv_want base_want(struct ai_type *ait, struct player *pplayer,
   return final_want;
 }
 
+/**************************************************************************
+  Is this a city improvement whose main purpose is to raise output or
+  reduce pollution/waste?  Wonders are excluded; they have their own
+  valuation path.
+**************************************************************************/
+static bool is_development_improvement(const struct impr_type *pimprove)
+{
+  if (pimprove->genus != IG_IMPROVEMENT) {
+    return FALSE;
+  }
+
+  return (building_has_effect(pimprove, EFT_OUTPUT_BONUS)
+          || building_has_effect(pimprove, EFT_OUTPUT_BONUS_2)
+          || building_has_effect(pimprove, EFT_OUTPUT_ADD_TILE)
+          || building_has_effect(pimprove, EFT_OUTPUT_INC_TILE)
+          || building_has_effect(pimprove, EFT_OUTPUT_PER_TILE)
+          || building_has_effect(pimprove, EFT_OUTPUT_INC_TILE_CELEBRATE)
+          || building_has_effect(pimprove, EFT_OUTPUT_WASTE)
+          || building_has_effect(pimprove, EFT_OUTPUT_WASTE_BY_DISTANCE)
+          || building_has_effect(pimprove, EFT_OUTPUT_WASTE_PCT)
+          || building_has_effect(pimprove, EFT_POLLU_POP_PCT)
+          || building_has_effect(pimprove, EFT_POLLU_POP_PCT_2)
+          || building_has_effect(pimprove, EFT_POLLU_PROD_PCT)
+          || building_has_effect(pimprove, EFT_SPECIALIST_OUTPUT)
+          || building_has_effect(pimprove, EFT_TRADE_REVENUE_BONUS));
+}
+
+/**************************************************************************
+  Does this improvement increase shield output?  Such improvements are
+  especially valuable in wartime because they shorten the time needed to
+  replace losses and reinforce threatened cities.
+**************************************************************************/
+static bool is_shield_production_improvement(struct impr_type *pimprove)
+{
+  struct universal source = {
+    .kind = VUT_IMPROVEMENT,
+    .value = {.building = pimprove}
+  };
+
+  effect_list_iterate(get_req_source_effects(&source), peffect) {
+    switch (peffect->type) {
+    case EFT_OUTPUT_BONUS:
+    case EFT_OUTPUT_BONUS_2:
+    case EFT_OUTPUT_ADD_TILE:
+    case EFT_OUTPUT_INC_TILE:
+    case EFT_OUTPUT_PER_TILE:
+    case EFT_OUTPUT_INC_TILE_CELEBRATE:
+      requirement_vector_iterate(&peffect->reqs, preq) {
+        if (preq->present
+            && VUT_OTYPE == preq->source.kind
+            && preq->source.value.outputtype == O_SHIELD) {
+          return TRUE;
+        }
+      } requirement_vector_iterate_end;
+      break;
+    default:
+      break;
+    }
+  } effect_list_iterate_end;
+
+  return FALSE;
+}
+
+/**************************************************************************
+  Increase the desirability of an improvement during a peacetime
+  development posture.
+
+  Most of the buildings in which we are interested are already valued by
+  base_want(), but their score collapses when their current marginal
+  benefit is small: an expensive factory in a city with a modest shield
+  surplus, a Mass Transit in a city that is not polluted yet, or an
+  Offshore Platform before the city works many ocean tiles.  The AI
+  then falls back to cheap improvements, units or coinage and never
+  reaches the buildings that would raise its output.
+
+  Apply a modest floor so those buildings remain competitive, and scale
+  up wants that are already positive.  This is done before requirement
+  propagation so that the AI also starts wanting the enabling
+  technologies and prerequisite buildings.
+**************************************************************************/
+static adv_want development_adjust_want(adv_want want, bool peacetime,
+                                        bool production)
+{
+  int floor;
+  const int multiplier = peacetime ? DEVELOPMENT_WANT_MULTIPLIER_PCT
+                                   : DEVELOPMENT_WARTIME_MULTIPLIER_PCT;
+
+  if (peacetime) {
+    floor = DEVELOPMENT_WANT_FLOOR;
+  } else if (production) {
+    floor = DEVELOPMENT_WARTIME_PRODUCTION_FLOOR;
+  } else {
+    floor = DEVELOPMENT_WARTIME_FLOOR;
+  }
+
+  if (want < floor) {
+    return floor;
+  }
+
+  return MIN(want * multiplier / 100, DEVELOPMENT_WANT_MAX);
+}
+
 /************************************************************************** 
   Calculate effects of possible improvements and extra effects of existing
   improvements. Consequently adjust the desirability of those improvements
@@ -1633,6 +1758,29 @@ static void adjust_improvement_wants_by_effects(struct ai_type *ait,
     }
   } action_iterate_end;
 
+  /* Do not let the marginal-value formula talk us out of the improvements
+   * that raise the city's long-term output.  In peacetime this applies
+   * everywhere; in wartime only where the city is not in grave danger,
+   * and with a stronger priority for shield-producing buildings.  This
+   * has to happen before adjust_wants_for_reqs() so that the enabling
+   * techs and prerequisite buildings also get a corresponding share. */
+  if (!already
+      && game.server.aidevelopment
+      && ai->development.turn == game.info.turn) {
+    const bool peacetime = ai->development.wanted;
+    const bool wartime_safe =
+      (ai->development.war_economy
+       && def_ai_city_data(pcity, ait)->grave_danger == 0);
+
+    if ((peacetime || wartime_safe)
+        && is_development_improvement(pimprove)
+        && can_city_build_improvement_later(pcity, pimprove)
+        && !is_improvement_redundant(pcity, pimprove)) {
+      v = development_adjust_want(v, peacetime,
+                                  is_shield_production_improvement(pimprove));
+    }
+  }
+
   if (already) {
     /* Discourage research of the technology that would make this building
      * obsolete. The bigger the desire for this building, the more
@@ -1715,6 +1863,102 @@ void dai_build_adv_init(struct ai_type *ait, struct player *pplayer)
   city_list_iterate(pplayer->cities, pcity) {
     def_ai_city_data(pcity, ait)->worth = dai_city_want(pplayer, pcity, ai, NULL);
   } city_list_iterate_end;
+}
+
+/**************************************************************************
+  Recompute the economic development posture.
+
+  In peacetime the AI develops normally.  When it is at war but not
+  preparing another war, it uses a weaker "war economy" posture in cities
+  that are not in grave danger (no enemy can attack them next turn).
+  Shield-producing improvements keep a higher priority there, because
+  they let the city replace losses and reinforce the front faster.
+  Cities in grave danger continue to produce defenders and attackers.
+  A war footing (planning a new war) keeps the existing all-military
+  behavior.
+
+  This is the counterpart of the deterrence assessment: deterrence keeps
+  a minimal defense while the AI is safe, and development makes sure that
+  being safe does not mean falling back to coinage or units once the
+  cheap improvements are built.
+
+  The relative-strength estimate is taken from the deterrence data so
+  that both features use the same power model and intel limits.  It is
+  kept for inspection/debugging; the city want adjustment itself is
+  enabled/disabled by the 'aidevelopment' setting.
+**************************************************************************/
+void dai_update_development_posture(struct ai_type *ait,
+                                    struct player *pplayer)
+{
+  struct adv_data *adv = adv_data_get(pplayer, NULL);
+  struct adv_development *dev = &adv->development;
+  bool at_war = FALSE;
+  bool war_planned = FALSE;
+  float strongest_opponent = 0.0f;
+  bool have_opponent = FALSE;
+
+  dev->turn = game.info.turn;
+  dev->wanted = FALSE;
+  dev->war_economy = FALSE;
+  dev->at_war = FALSE;
+  dev->war_planned = FALSE;
+  dev->strength_ratio = 0.0f;
+
+  if (S_S_RUNNING != server_state()
+      || is_barbarian(pplayer)
+      || !pplayer->is_alive) {
+    return;
+  }
+
+  war_planned = dai_on_war_footing(ait, pplayer);
+
+  players_iterate_alive(aplayer) {
+    int pn = player_index(aplayer);
+
+    if (aplayer == pplayer
+        || pplayers_allied(pplayer, aplayer)
+        || players_on_same_team(pplayer, aplayer)) {
+      continue;
+    }
+
+    /* Do not use pplayers_at_war() here: it also treats "no contact" as
+     * war, which would suppress development against players we have not
+     * even met yet. */
+    if (WAR(pplayer, aplayer)) {
+      at_war = TRUE;
+    }
+
+    if (game.server.aideterrence
+        && adv->deterrence.turn == game.info.turn
+        && adv->deterrence.opp_threshold[pn] > 0.0f) {
+      /* RPI is (our power / opponent power) - 1.  A smaller value means a
+       * stronger opponent, so keep the smallest ratio we see. */
+      float ratio = MAX(0.0f, 1.0f + adv->deterrence.opp_rpi[pn]);
+
+      if (!have_opponent || ratio < strongest_opponent) {
+        strongest_opponent = ratio;
+        have_opponent = TRUE;
+      }
+    }
+  } players_iterate_alive_end;
+
+  dev->at_war = at_war;
+  dev->war_planned = war_planned;
+  dev->wanted = !at_war && !war_planned;
+  /* A war does not stop economic development everywhere: cities that are
+   * not under immediate threat can still improve their output.  A war
+   * footing (preparing a new war) keeps the old all-military behavior. */
+  dev->war_economy = at_war && !war_planned;
+  dev->strength_ratio = have_opponent ? strongest_opponent : 0.0f;
+
+  log_base(LOG_DEVELOPMENT,
+           "%s development: %s (at_war=%s, war_planned=%s, "
+           "war_economy=%s, strength_ratio=%.2f)",
+           player_name(pplayer),
+           dev->wanted ? "peacetime" : (dev->war_economy ? "war economy"
+                                                         : "off"),
+           at_war ? "yes" : "no", war_planned ? "yes" : "no",
+           dev->war_economy ? "yes" : "no", dev->strength_ratio);
 }
 
 /************************************************************************** 

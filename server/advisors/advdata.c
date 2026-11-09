@@ -664,6 +664,7 @@ void adv_data_init(struct player *pplayer)
   /* Not computed yet (fc_calloc zeroed the struct) */
   adv->deterrence.turn = -1;
   adv->deterrence.threat = -1;
+  adv->development.turn = -1;
 
   adv->dipl.adv_dipl_slots = fc_calloc(player_slot_count(),
                                        sizeof(*adv->dipl.adv_dipl_slots));

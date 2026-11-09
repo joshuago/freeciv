@@ -617,6 +617,20 @@ static void show_deterrence_for_player(struct player *pplayer,
               player_name(player_by_number(det->threat)),
               det->threat_rpi);
   }
+
+  if (adv->development.turn >= 0) {
+    cmd_reply(CMD_DETERRENCE, caller, C_COMMENT,
+              _("  Development posture: %s (at war: %s, war planned: %s, "
+                "war economy: %s, strength ratio: %.2f, setting %s)"),
+              adv->development.wanted ? _("peacetime")
+                : (adv->development.war_economy ? _("war economy")
+                                                : _("off")),
+              adv->development.at_war ? _("yes") : _("no"),
+              adv->development.war_planned ? _("yes") : _("no"),
+              adv->development.war_economy ? _("yes") : _("no"),
+              adv->development.strength_ratio,
+              game.server.aidevelopment ? _("on") : _("off"));
+  }
 }
 
 /**************************************************************************

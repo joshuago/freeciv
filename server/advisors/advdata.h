@@ -54,6 +54,21 @@ struct adv_deterrence {
   float opp_rpi[MAX_NUM_PLAYER_SLOTS];
 };
 
+/* Economic development posture, recomputed once per turn by the AI
+ * (dai_update_development_posture()).  In peacetime, and in wartime
+ * cities that are not in grave danger, it values city improvements that
+ * raise output or reduce pollution more highly.  Wartime shield
+ * improvements get an extra priority so threatened cities can produce
+ * defenders faster. */
+struct adv_development {
+  int turn;             /* Turn when last computed; -1 = never */
+  bool wanted;          /* Peacetime development posture */
+  bool war_economy;     /* At war, but safe cities may still develop */
+  bool at_war;          /* Currently at war with any non-allied player */
+  bool war_planned;     /* War footing / countdown to war active */
+  float strength_ratio; /* Own power / strongest opponent power; 0 = unknown */
+};
+
 struct adv_dipl {
   /* Remember one example of each for text spam purposes. */
   bool allied_with_enemy;
@@ -89,6 +104,7 @@ struct adv_data {
   } explore;
 
   struct adv_deterrence deterrence;
+  struct adv_development development;
 
   /* This struct is used for statistical unit building, eg to ensure
    * that we don't build too few or too many units of a given type. */

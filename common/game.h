@@ -126,6 +126,7 @@ struct civ_game {
       enum city_names_mode allowed_city_names;
       enum plrcolor_mode plrcolormode;
       int aqueductloss;
+      bool aidevelopment;
       bool aideterrence;
       bool auto_ai_toggle;
       bool autoattack;
@@ -526,6 +527,7 @@ extern struct civ_game game;
 #define GAME_DEFAULT_AUTO_AI_TOGGLE  FALSE
 
 #define GAME_DEFAULT_AIDETERRENCE    TRUE
+#define GAME_DEFAULT_AIDEVELOPMENT   TRUE
 
 #define GAME_DEFAULT_TIMEOUT         0
 #define GAME_DEFAULT_FIRST_TIMEOUT   -1
