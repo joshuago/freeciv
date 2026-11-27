@@ -424,7 +424,7 @@ static bool city_has_class_impr(const struct city *pcity,
   int i;
 
   for (i = 0; i < improvement_count(); i++) {
-    if (info[i].cls == cls
+    if (info[i].cls == cls && info[i].chain
         && city_has_building(pcity, improvement_by_number(i))) {
       return TRUE;
     }
@@ -458,6 +458,12 @@ static struct impr_type *capital_impr_next(const struct city *pcity,
     const int cost = impr_build_shield_cost(pimprove);
 
     if (info[i].cls != cls || info[i].tier > max_tier || !info[i].chain) {
+      continue;
+    }
+    if (!can_player_build_improvement_later(city_owner(pcity), pimprove)) {
+      /* The player can never build this improvement (it is obsolete or
+       * otherwise impossible).  Do not let it block the rest of the
+       * chain. */
       continue;
     }
     if (city_has_building(pcity, pimprove)) {
@@ -516,9 +522,14 @@ static adv_want capital_improvement_want(struct ai_type *ait,
     return 0;
   }
 
-  /* Only a safe city is worth developing: an improvement is of no use
-   * to a city that is about to be taken over. */
-  if (city_data->danger > 0 || city_data->grave_danger > 0) {
+  /* Only a city that is not about to be attacked is worth developing:
+   * an improvement is of no use to a city that may be taken over next
+   * turn.  A mere threat (danger) is not enough to stop development,
+   * otherwise a single enemy unit within a few turns of a city would
+   * prevent it from ever improving itself.  The H_DANGER handicap makes
+   * the AI believe that every city is in grave danger even when it is
+   * safe; that should not stop it from developing its economy. */
+  if (city_data->grave_danger > 0 && !has_handicap(pplayer, H_DANGER)) {
     return 0;
   }
 
@@ -763,13 +774,57 @@ static void dai_city_choose_build(struct ai_type *ait, struct player *pplayer,
   if (is_barbarian(pplayer)) {
     dai_barbarian_choose_build(pplayer, pcity, &(city_data->choice));
   } else {
+    const bool war_footing = dai_on_war_footing(ait, pplayer);
+    const bool wonder_city = (pcity->id == adv->wonder_city);
+    /* H_DANGER makes the AI believe every city is in grave danger even
+     * when it is safe.  Do not let that handicap stop economic
+     * development either. */
+    const bool safe_city = (city_data->grave_danger == 0
+                            || has_handicap(pplayer, H_DANGER));
     /* FIXME: 101 is the "overriding military emergency" indicator */
-    if ((city_data->choice.want <= 100
-         || city_data->urgency == 0)
-        && !(dai_on_war_footing(ait, pplayer) && city_data->choice.want > 0
-             && pcity->id != adv->wonder_city)) {
+    const bool civilian_ok
+      = ((city_data->choice.want <= 100 || city_data->urgency == 0)
+         && !(war_footing && city_data->choice.want > 0 && !wonder_city));
+
+    if (civilian_ok) {
       domestic_advisor_choose_build(ait, pplayer, pcity, &newchoice);
       copy_if_better_choice(&newchoice, &(city_data->choice));
+    } else if (safe_city) {
+      /* The city is in a war economy or has a local military emergency,
+       * but no enemy can take it next turn.  Let city improvements
+       * compete with the units anyway; a library or university makes
+       * the empire stronger in the long run.  Settlers and caravans are
+       * still skipped, as they do not help the current war effort. */
+      struct adv_choice building_choice;
+      bool capital_impr = FALSE;
+
+      adv_init_choice(&building_choice);
+      building_advisor_choose(pcity, &building_choice);
+
+      if (building_choice.type == CT_BUILDING
+          && building_choice.value.building != NULL) {
+        capital_impr
+          = (capital_impr_class_of(building_choice.value.building)
+             != CAPITAL_IMPR_NONE);
+      }
+
+      /* A defended city that cannot be attacked next turn is better off
+       * developing its economy than producing yet another unit.  Keep
+       * the military choice if the city has no defender at all, so that
+       * an undefended city still raises one.  Only improvements with a
+       * meaningful want are forced; a marginal building still has to
+       * beat the military choice on its own. */
+      if (building_choice.want > city_data->choice.want
+          || (capital_impr && building_choice.want >= 100
+              && assess_defense_quadratic(ait, pcity) > 0)) {
+        city_data->choice = building_choice;
+
+        /* Keep the same ceiling the domestic advisor uses, so that a
+         * real military emergency can still override the building. */
+        if (city_data->choice.want >= 200) {
+          city_data->choice.want = 199;
+        }
+      }
     }
   }
 
